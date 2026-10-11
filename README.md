@@ -50,6 +50,8 @@ On Arch (package names as of writing):
 | GStreamer DeckLink plugin | `gst-plugins-bad-libs` |
 | Virtual camera kernel module | `v4l2loopback-dkms` |
 | Desktop notifications | `libnotify` |
+| Live preview in the panel | `qt6-multimedia` |
+| Preview in a separate window (optional) | `mpv` or `ffmpeg` (`ffplay`) |
 
 ### Virtual camera setup (needs root, once)
 
@@ -156,13 +158,13 @@ state comes from the pipeline's own "Signal lost / recovered" log lines.
 ### What it runs
 
 `backend.sh` runs `systemd-run --user`, `systemctl --user`, `journalctl --user`,
-`gst-launch-1.0`, `gst-device-monitor-1.0`, `pgrep` and `notify-send`. The only
+`gst-launch-1.0`, `gst-device-monitor-1.0`, `pgrep`, `notify-send` and, for the preview window, `mpv` or `ffplay`. The only
 file it writes is `~/.config/omarchy/decklink.conf` (plus a `.lock` beside it).
 
 ## Removal
 
 ```bash
-systemctl --user stop tzv-decklink     # if the camera is running
+systemctl --user stop tzv-decklink tzv-decklink-preview   # if the camera is running
 omarchy plugin remove tzv.decklink
 rm -f ~/.config/omarchy/decklink.conf ~/.config/omarchy/decklink.conf.lock
 ```
