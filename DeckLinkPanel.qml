@@ -47,7 +47,7 @@ Panel {
     camState = o.state
     holder = o.holder
     sink = o.sink
-    cfg = o.settings
+    if (o.settings) cfg = o.settings
   }
 
   function refresh() {
@@ -362,7 +362,7 @@ Panel {
         Dropdown {
           width: parent.width
           label: "Capture device"
-          value: root.cfg.device
+          value: String(root.cfg.device)
           options: root.devices.length > 0 ? root.devices
             : [{ value: root.cfg.device, label: "Card " + root.cfg.device }]
           enabled: !root.busy
@@ -384,7 +384,7 @@ Panel {
             visible: root.options[modelData.key].length > 1
             width: column.width
             label: modelData.label
-            value: root.cfg[modelData.key]
+            value: String(root.cfg[modelData.key] ?? "")
             options: root.options[modelData.key]
             enabled: !root.busy
             foreground: root.foreground
