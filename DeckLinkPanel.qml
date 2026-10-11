@@ -1,4 +1,5 @@
 import QtQuick
+import QtMultimedia
 import Quickshell.Io
 import qs.Commons
 import qs.Ui
@@ -155,6 +156,70 @@ Panel {
     }
   }
 
+  Component {
+    id: previewComponent
+    Rectangle {
+      id: previewHost
+      color: "black"
+      radius: Style.cornerRadius
+      clip: true
+      property string cameraError: ""
+      readonly property var matchedDevice: {
+        var inputs = mediaDevices.videoInputs
+        for (var i = 0; i < inputs.length; i++) {
+          if (String(inputs[i].description) === "DeckLink Virtual Camera") return inputs[i]
+        }
+        return null
+      }
+
+      MediaDevices { id: mediaDevices }
+      Camera {
+        id: camera
+        cameraDevice: previewHost.matchedDevice
+        active: previewHost.matchedDevice !== null
+        onErrorOccurred: function(error, errorString) { previewHost.cameraError = errorString }
+      }
+      CaptureSession { camera: camera; videoOutput: videoOutput }
+      VideoOutput {
+        id: videoOutput
+        anchors.fill: parent
+        fillMode: VideoOutput.PreserveAspectFit
+      }
+
+      Rectangle {
+        x: Style.space(8); y: Style.space(8)
+        width: badge.implicitWidth + Style.space(12)
+        height: badge.implicitHeight + Style.space(6)
+        color: Qt.rgba(0, 0, 0, 0.7)
+        Text {
+          id: badge
+          anchors.centerIn: parent
+          textFormat: Text.PlainText
+          text: root.camState === "nosignal" ? "PREVIEW · NO SIGNAL" : "PREVIEW · LIVE"
+          color: root.camState === "nosignal" ? root.urgent : "white"
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          font.bold: true
+        }
+      }
+
+      Text {
+        anchors.centerIn: parent
+        width: parent.width - Style.space(40)
+        visible: previewHost.matchedDevice === null || camera.error !== Camera.NoError
+        text: previewHost.matchedDevice === null
+          ? "Preview unavailable: no 'DeckLink Virtual Camera' device found."
+          : (previewHost.cameraError || camera.errorString || "The preview could not start.")
+        color: "white"
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
+        horizontalAlignment: Text.AlignHCenter
+        wrapMode: Text.WordWrap
+        textFormat: Text.PlainText
+      }
+    }
+  }
+
   // ---- panel -----------------------------------------------------------
 
   KeyboardPanel {
@@ -174,7 +239,7 @@ Panel {
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(t) {
         if (t === "s" || t === "S") root.toggleCamera()
-        else if ((t === "p" || t === "P") && root.running) root.togglePreview()
+        else if ((t === "w" || t === "W") && root.running) root.togglePreview()
         else if (t === "r" || t === "R") root.refresh()
       }
 
@@ -182,6 +247,17 @@ Panel {
         id: column
         width: parent.width
         spacing: Style.space(12)
+
+        // Live picture from the virtual camera. It reads the loopback device, not
+        // the card, so it can't take the card from anything. It only runs while
+        // the panel is open and the camera is running.
+        Loader {
+          id: previewLoader
+          width: parent.width
+          height: active ? Math.round(width * 9 / 16) : 0
+          active: root.opened && root.running
+          sourceComponent: previewComponent
+        }
 
         PanelHero {
           id: hero
@@ -237,7 +313,7 @@ Panel {
 
         Button {
           visible: root.running
-          text: root.previewOpen ? "Close preview" : "Preview"
+          text: root.previewOpen ? "Close preview window" : "Open in a window"
           iconText: "󰄀"
           foreground: root.foreground
           fontFamily: root.fontFamily
