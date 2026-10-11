@@ -330,14 +330,17 @@ cmd_preview() {
   local sink; sink=$(find_sink) || { echo "error: no virtual camera device"; return 1; }
   local player
   if command -v mpv >/dev/null; then
-    player=(mpv --no-config --title="DeckLink preview" --profile=low-latency --untimed --no-audio --force-window=yes "av://v4l2:$sink")
+    player=(mpv --no-config --title="DeckLink preview" --profile=low-latency --untimed --no-audio --force-window=yes --keep-open=no "av://v4l2:$sink")
   elif command -v ffplay >/dev/null; then
     player=(ffplay -window_title "DeckLink preview" -fflags nobuffer -flags low_delay -f v4l2 "$sink")
   else
     echo "error: install mpv or ffplay to preview"; return 1
   fi
   systemctl --user reset-failed "$PREVIEW_UNIT" 2>/dev/null
-  if systemd-run --user --quiet --unit="$PREVIEW_UNIT" --collect "${player[@]}" 2>/dev/null; then
+  # BindsTo ties the window to the camera: however the camera stops (the
+  # toggle, a crash, a restart), the preview window closes with it.
+  if systemd-run --user --quiet --unit="$PREVIEW_UNIT" --collect \
+        -p BindsTo="$UNIT.service" -p After="$UNIT.service" "${player[@]}" 2>/dev/null; then
     echo "ok: preview opened"
   else
     echo "error: could not open the preview"; return 1
