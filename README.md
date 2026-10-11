@@ -9,10 +9,13 @@ and left-click to open a panel with a live preview and the card, input, video
 mode, pixel format and audio settings. Optionally, the card's embedded audio
 becomes a microphone.
 
-**Requires Blackmagic Design's official Desktop Video software** (the driver that
-provides the `blackmagic_io` kernel module and makes the card visible to Linux;
-`decklink` in the AUR on Arch). Without it the plugin finds no card. See
-[Requirements](#requirements) for the other packages.
+**Requires Blackmagic Design's official Desktop Video software**, downloaded
+from the [Blackmagic Design Capture and Playback support
+page](https://www.blackmagicdesign.com/uk/support/family/capture-and-playback).
+It is the driver that provides the `blackmagic_io` kernel module and makes the
+card visible to Linux (on Arch it is packaged as `decklink` in the AUR). Without
+it the plugin finds no card. See [Requirements](#requirements) for the other
+packages.
 
 ![The DeckLink panel](preview.png)
 
@@ -68,7 +71,7 @@ On Arch (package names as of writing):
 | What | Package |
 |------|---------|
 | Omarchy with the Quickshell shell | `omarchy` |
-| Blackmagic Design Desktop Video drivers (the `blackmagic_io` kernel module) | `decklink` (AUR) |
+| [Blackmagic Design Desktop Video](https://www.blackmagicdesign.com/uk/support/family/capture-and-playback) drivers (the `blackmagic_io` kernel module) | `decklink` (AUR) |
 | GStreamer DeckLink plugin | `gst-plugins-bad-libs` |
 | Virtual camera kernel module | `v4l2loopback-dkms` |
 | Desktop notifications | `libnotify` |
