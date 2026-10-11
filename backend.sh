@@ -15,15 +15,13 @@
 #                      (default: the saved card) supports
 #   devices            one JSON line: the capture cards found
 #   start              start the bridge
-#   stop               stop the bridge (and close the preview)
-#   preview            open (or close) a live preview window of the camera
+#   stop               stop the bridge
 #   set KEY VALUE      save a setting; restarts the bridge only if it is running
 #   run                the pipeline itself (used by the transient unit)
 # KEY is one of: device, connection, mode, format, profile.
 set -uo pipefail
 
 UNIT=tzv-decklink
-PREVIEW_UNIT=tzv-decklink-preview
 CONF="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/decklink.conf"
 LOOPBACK_LABEL="DeckLink Virtual Camera"
 SELF=$(readlink -f "${BASH_SOURCE[0]}")
@@ -197,8 +195,8 @@ cmd_status() {
       *) state=live ;;
     esac
   fi
-  printf '{"state":"%s","preview":"%s","device":"%s","connection":"%s","mode":"%s","format":"%s","profile":"%s","holder":"%s","sink":"%s"}\n' \
-    "$state" "$(preview_open && echo yes || echo no)" "$DEVICE" "$CONNECTION" "$MODE" "$FORMAT" "$PROFILE" "$holder_name" "$sink"
+  printf '{"state":"%s","device":"%s","connection":"%s","mode":"%s","format":"%s","profile":"%s","holder":"%s","sink":"%s"}\n' \
+    "$state" "$DEVICE" "$CONNECTION" "$MODE" "$FORMAT" "$PROFILE" "$holder_name" "$sink"
 }
 
 # What a card reports, from GStreamer: "model <name>" then one "caps WxH,fps,i|p"
@@ -309,42 +307,11 @@ cmd_start() {
 }
 
 cmd_stop() {
-  systemctl --user stop "$PREVIEW_UNIT" 2>/dev/null
   if ! running; then echo "ok: not running"; return 0; fi
   systemctl --user stop "$UNIT"
   systemctl --user reset-failed "$UNIT" 2>/dev/null
   echo "ok: stopped"
   notify normal camera-off "DeckLink camera stopped" "The card is free for OBS or Resolve."
-}
-
-# A preview window reads the virtual camera, not the card, so it can't take the
-# card from anything. It needs the camera to be running.
-preview_open() { [[ "$(systemctl --user show "$PREVIEW_UNIT" -p ActiveState --value 2>/dev/null)" == "active" ]]; }
-
-cmd_preview() {
-  if preview_open; then
-    systemctl --user stop "$PREVIEW_UNIT"
-    echo "ok: preview closed"; return 0
-  fi
-  if ! running; then echo "error: start the camera first"; return 1; fi
-  local sink; sink=$(find_sink) || { echo "error: no virtual camera device"; return 1; }
-  local player
-  if command -v mpv >/dev/null; then
-    player=(mpv --no-config --title="DeckLink preview" --profile=low-latency --untimed --no-audio --force-window=yes --keep-open=no "av://v4l2:$sink")
-  elif command -v ffplay >/dev/null; then
-    player=(ffplay -window_title "DeckLink preview" -fflags nobuffer -flags low_delay -f v4l2 "$sink")
-  else
-    echo "error: install mpv or ffplay to preview"; return 1
-  fi
-  systemctl --user reset-failed "$PREVIEW_UNIT" 2>/dev/null
-  # BindsTo ties the window to the camera: however the camera stops (the
-  # toggle, a crash, a restart), the preview window closes with it.
-  if systemd-run --user --quiet --unit="$PREVIEW_UNIT" --collect \
-        -p BindsTo="$UNIT.service" -p After="$UNIT.service" "${player[@]}" 2>/dev/null; then
-    echo "ok: preview opened"
-  else
-    echo "error: could not open the preview"; return 1
-  fi
 }
 
 cmd_set() {
@@ -402,8 +369,7 @@ case "${1:-}" in
   devices) cmd_devices ;;
   start)   cmd_start ;;
   stop)    cmd_stop ;;
-  preview) cmd_preview ;;
   set)     shift; cmd_set "$@" ;;
   run)     cmd_run ;;
-  *) echo "usage: ${0##*/} <status|options [N]|devices|start|stop|preview|set KEY VALUE>" >&2; exit 2 ;;
+  *) echo "usage: ${0##*/} <status|options [N]|devices|start|stop|set KEY VALUE>" >&2; exit 2 ;;
 esac

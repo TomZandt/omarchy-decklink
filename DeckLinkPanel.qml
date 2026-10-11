@@ -18,7 +18,6 @@ Panel {
   manageIpc: false
 
   property string camState: "off"    // off | live | nosignal | error
-  property bool previewOpen: false
   property string holder: ""          // another app that has the card (obs, resolve)
   property var cfg: ({ device: "0", connection: "auto", mode: "auto", format: "auto", profile: "default" })
   property var options: ({ model: "", connection: [], mode: [], format: [], profile: [] })   // from backend.sh options, filtered to the selected card
@@ -47,7 +46,6 @@ Panel {
     if (!o) { camState = "error"; return }
     camState = o.state
     holder = o.holder
-    previewOpen = o.preview === "yes"
     sink = o.sink
     cfg = { device: o.device, connection: o.connection, mode: o.mode, format: o.format, profile: o.profile }
   }
@@ -69,7 +67,6 @@ Panel {
     actionProcess.running = true
   }
 
-  function togglePreview() { runBackend(["preview"]) }
   function toggleCamera() { runBackend([running ? "stop" : "start"]) }
   function setSetting(key, value) { runBackend(["set", key, value]) }
 
@@ -239,7 +236,6 @@ Panel {
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(t) {
         if (t === "s" || t === "S") root.toggleCamera()
-        else if ((t === "w" || t === "W") && root.running) root.togglePreview()
         else if (t === "r" || t === "R") root.refresh()
       }
 
@@ -345,17 +341,6 @@ Panel {
           font.family: root.fontFamily
           font.pixelSize: Style.font.bodySmall
           wrapMode: Text.WordWrap
-        }
-
-        Button {
-          visible: root.running
-          text: root.previewOpen ? "Close preview window" : "Open in a window"
-          iconText: "󰄀"
-          foreground: root.foreground
-          fontFamily: root.fontFamily
-          bordered: true
-          enabled: !root.busy
-          onClicked: root.togglePreview()
         }
 
         PanelSeparator { foreground: root.foreground }
