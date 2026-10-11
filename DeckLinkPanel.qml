@@ -1,6 +1,4 @@
 import QtQuick
-import QtQuick.Layouts
-import Quickshell
 import Quickshell.Io
 import qs.Commons
 import qs.Ui
@@ -82,6 +80,14 @@ Panel {
     if (opened) { say("", false); refresh(); loadChoices() }
   }
 
+  // omarchy-shell decklink <open|close|toggle>: handy for a keybinding and for screenshots.
+  IpcHandler {
+    target: "decklink"
+    function open(): void { root.open() }
+    function close(): void { root.close() }
+    function toggle(): void { root.toggle() }
+  }
+
   Timer {
     interval: Math.max(2, Number(root.setting("refreshIntervalSec", 5))) * 1000
     running: true
@@ -122,7 +128,7 @@ Panel {
         root.say(line.replace(/^(ok|error): /, ""), line.indexOf("error:") === 0)
       }
     }
-    onExited: function(code) {
+    onExited: function(code, status) {
       if (code !== 0 && root.message === "") root.say("The DeckLink backend failed (exit " + code + ").", true)
       root.busy = false
       root.refresh()
