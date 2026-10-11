@@ -12,6 +12,8 @@ check() { if eval "$2"; then echo "ok   $1"; else echo "FAIL $1"; fail=1; fi; }
 
 check "status is valid JSON"      'bash "$B" status | python3 -c "import json,sys;json.load(sys.stdin)"'
 check "options is valid JSON"     'bash "$B" options | python3 -c "import json,sys;d=json.load(sys.stdin);assert d[\"mode\"] and d[\"connection\"] and d[\"format\"]"'
+check "status reports preview state" 'bash "$B" status | grep -q "\"preview\":\"no\""'
+check "preview needs the camera"  '! bash "$B" preview >/dev/null'
 check "defaults are auto"         'bash "$B" status | grep -q "\"mode\":\"auto\""'
 
 check "set saves a setting"       'bash "$B" set mode 1080i50 >/dev/null && grep -qx "DECKLINK_MODE=1080i50" "$CONF"'
