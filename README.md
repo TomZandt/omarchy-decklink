@@ -78,7 +78,7 @@ omarchy plugin add https://github.com/TomZandt/omarchy-decklink.git --enable
 ```
 
 Plugins are added disabled so you can read the code first. Drop `--enable` to
-review it before turning it on. Update with `omarchy plugin update tzv.decklink`.
+review it before turning it on. Update with `omarchy plugin update tzv.decklink`. If the panel looks out of date after an update, run `omarchy restart shell`; an open panel can keep running the old code.
 
 ## Configuration
 
