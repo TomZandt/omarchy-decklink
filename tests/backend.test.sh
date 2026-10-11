@@ -16,10 +16,12 @@ mkdir -p "$XDG_CONFIG_HOME/omarchy"
 CONF=$XDG_CONFIG_HOME/omarchy/decklink.conf
 FAKE=$DECKLINK_FAKE_DIR
 fail=0
-check() { if eval "$2"; then echo "ok   $1"; else echo "FAIL $1"; fail=1; fi; }
+check() { if bash -c "$2"; then echo "ok   $1"; else echo "FAIL $1"; fail=1; fi; }
+export B XDG_CONFIG_HOME DECKLINK_FAKE_DIR CONF FAKE
 fresh() { rm -rf "$FAKE"/* "$CONF"; }
 json() { python3 -c "import json,sys;d=json.load(sys.stdin);$1"; }
 vals() { bash "$B" options "$1" | json "print(' '.join(x['value'] for x in d['$2']))"; }
+export -f json vals
 
 echo "-- status and options"
 check "status is valid JSON"      'bash "$B" status | json "pass"'

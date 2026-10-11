@@ -71,17 +71,19 @@ The plugin finds its virtual camera by the label "DeckLink Virtual Camera" and
 refuses to start without one. It never falls back to `/dev/video0`, which could
 be a real webcam. Create the device by copying
 [system/v4l2loopback.conf](system/v4l2loopback.conf) to
-`/etc/modprobe.d/v4l2loopback.conf` and making the module load at boot:
+`/etc/modprobe.d/v4l2loopback.conf` and making the module load at boot. These
+three commands need root, so run them in a root shell (the plugin itself never
+runs anything as root):
 
 ```bash
-sudo cp system/v4l2loopback.conf /etc/modprobe.d/v4l2loopback.conf
-echo v4l2loopback | sudo tee /etc/modules-load.d/v4l2loopback.conf
-sudo modprobe v4l2loopback
+cp system/v4l2loopback.conf /etc/modprobe.d/v4l2loopback.conf
+echo v4l2loopback > /etc/modules-load.d/v4l2loopback.conf
+modprobe v4l2loopback
 ```
 
 If you already have v4l2loopback configured with that label, any `video_nr`
 works. If the module is already loaded with other options, unload it first
-(`sudo modprobe -r v4l2loopback`) or reboot.
+(`modprobe -r v4l2loopback`, as root) or reboot.
 
 ## Install
 
@@ -194,10 +196,10 @@ omarchy plugin remove tzv.decklink
 rm -f ~/.config/omarchy/decklink.conf ~/.config/omarchy/decklink.conf.lock
 ```
 
-Optionally remove the virtual camera setup:
+Optionally remove the virtual camera setup, as root:
 
 ```bash
-sudo rm /etc/modprobe.d/v4l2loopback.conf /etc/modules-load.d/v4l2loopback.conf
+rm /etc/modprobe.d/v4l2loopback.conf /etc/modules-load.d/v4l2loopback.conf
 ```
 
 ## Development
