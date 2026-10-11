@@ -14,7 +14,7 @@
   },
   "barWidget": {
     "displayName": "DeckLink",
-    "description": "Left-click starts or stops the virtual camera; right-click opens the settings panel; middle-click refreshes.",
+    "description": "Left-click opens the settings panel; right-click starts or stops the virtual camera; middle-click refreshes.",
     "category": "Media",
     "allowMultiple": false,
     "defaultSection": "right",

@@ -12,7 +12,7 @@ import qs.Ui
 // app at a time, so the camera only runs when you start it.
 //
 // Click map:
-//   left   start / stop the camera   right  open the settings panel
+//   left   open the settings panel   right  start / stop the camera
 //   middle refresh
 Panel {
   id: root
@@ -124,15 +124,15 @@ Panel {
       : root.state === "nosignal" ? root.urgent
       : Qt.darker(root.barForeground, 1.6)
     tooltipText: root.busy ? "DeckLink: working…"
-      : root.state === "live" ? "DeckLink camera: live (" + root.connection + " " + root.mode + ")\nLeft-click to stop · right-click for settings"
-      : root.state === "nosignal" ? "DeckLink camera: NO SIGNAL (" + root.connection + " " + root.mode + ")\nStreaming black. Check the source or try another mode\nRight-click for settings"
-      : root.holder !== "" ? "DeckLink camera: off\n" + root.holder + " is running and may hold the card\nLeft-click to start anyway · right-click for settings"
-      : "DeckLink camera: off\nLeft-click to start · right-click for settings"
+      : root.state === "live" ? "DeckLink camera: live (" + root.connection + " " + root.mode + ")\nLeft-click for settings · right-click to stop"
+      : root.state === "nosignal" ? "DeckLink camera: NO SIGNAL (" + root.connection + " " + root.mode + ")\nStreaming black. Check the source or try another mode\nLeft-click for settings · right-click to stop"
+      : root.holder !== "" ? "DeckLink camera: off\n" + root.holder + " is running and may hold the card\nLeft-click for settings · right-click to start anyway"
+      : "DeckLink camera: off\nLeft-click for settings · right-click to start"
 
     onPressed: function(b) {
-      if (b === Qt.RightButton) root.toggle()
+      if (b === Qt.RightButton) root.toggleCamera()
       else if (b === Qt.MiddleButton) root.refresh()
-      else root.toggleCamera()
+      else root.toggle()
     }
   }
 

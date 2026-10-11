@@ -21,8 +21,8 @@ be holding the card.
 
 | Click  | Action                                  |
 |--------|-----------------------------------------|
-| Left   | Start / stop the camera                 |
-| Right  | Open the settings panel                 |
+| Left   | Open the settings panel                 |
+| Right  | Start / stop the camera                 |
 | Middle | Refresh the status                      |
 
 The icon shows the state: dimmed when off, normal when live, and in the alert
