@@ -418,7 +418,7 @@ Panel {
 
         Text {
           width: parent.width
-          text: "Changing a setting restarts the camera if it is running. The camera never starts on its own, so OBS and Resolve can use the card.\n\nTested on a DeckLink Mini Recorder only. Other cards may need other settings; see the README."
+          text: "Changing a setting restarts the camera if it is running. The camera never starts on its own, so OBS and Resolve can use the card."
           textFormat: Text.PlainText
           color: root.dim
           font.family: root.fontFamily
