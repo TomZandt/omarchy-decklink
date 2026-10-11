@@ -2,22 +2,29 @@
 
 Use a Blackmagic DeckLink capture card as a webcam, from the
 [Omarchy](https://omarchy.org) bar. Start and stop the virtual camera with a
-click, and pick the input connection, video mode and pixel format from a panel.
-Chrome, Firefox, Zoom and anything else that speaks V4L2 sees it as
+click, and pick the card, input connection, video mode and pixel format from a
+panel. Chrome, Firefox, Zoom and anything else that speaks V4L2 sees it as
 "DeckLink Virtual Camera".
 
 DeckLink is an unofficial community plugin. It is not affiliated with,
 endorsed by, or connected to Blackmagic Design or Omarchy.
+
+> **Tested hardware: DeckLink Mini Recorder only.**
+> Every claim below was verified on a DeckLink Mini Recorder (the original
+> PCIe model with HD-SDI and HDMI inputs) on Arch Linux. Other models use the
+> same GStreamer element and *should* work, but are **untested**. They may need
+> a different connection, mode or pixel format. See [Other DeckLink
+> models](#other-decklink-models).
 
 ## It never starts by itself
 
 A DeckLink card serves one app at a time. While this plugin's camera is
 running, OBS or DaVinci Resolve can't open the card, and the other way round.
 So the camera only runs when you start it, and stopping it hands the card
-straight back. If OBS or Resolve is running, the tooltip warns you that it may
-be holding the card.
+straight back. If OBS or Resolve is running, the tooltip warns that it may be
+holding the card. A failed start does not retry.
 
-## Click map
+## Usage
 
 | Click  | Action                                  |
 |--------|-----------------------------------------|
@@ -25,28 +32,42 @@ be holding the card.
 | Right  | Start / stop the camera                 |
 | Middle | Refresh the status                      |
 
-The icon shows the state: dimmed when off, normal when live, and in the alert
-colour when the camera is running but there is **no signal** (it streams black).
-In the panel, `S` toggles the camera and `R` refreshes.
+The icon is dimmed when off, normal when live, and in the alert colour when the
+camera is running but there is **no signal** (it is streaming black). In the
+panel, `S` toggles the camera, `R` refreshes and `Esc` closes.
 
-## How it works
-
-`backend.sh` runs a GStreamer pipeline
-(`decklinkvideosrc ! videoconvert ! deinterlace ! v4l2sink`) as a transient
-systemd user unit called `tzv-decklink`. Nothing is installed or enabled, and
-nothing runs as root. Settings are saved to `~/.config/omarchy/decklink.conf`.
-Signal state comes from the pipeline's own "Signal lost / recovered" log lines.
+Changing a setting restarts the camera if it is running, and just saves it
+otherwise. A fixed video mode with Pixel format "Auto" uses 8-bit YUV.
 
 ## Requirements
 
-- Omarchy with the Quickshell shell (`omarchy-shell`)
-- Blackmagic Desktop Video drivers (the `blackmagic_io` kernel module)
-- GStreamer with the DeckLink plugin: `gst-plugins-bad`
-- `v4l2loopback`, loaded with a labelled device. Copy
-  [system/v4l2loopback.conf](system/v4l2loopback.conf) to
-  `/etc/modprobe.d/v4l2loopback.conf`, then `sudo modprobe v4l2loopback`
-  (or reboot). The plugin finds the device by its "DeckLink Virtual Camera"
-  label, falling back to `/dev/video0`.
+On Arch (package names as of writing):
+
+| What | Package |
+|------|---------|
+| Omarchy with the Quickshell shell | `omarchy` |
+| Blackmagic Desktop Video drivers (the `blackmagic_io` kernel module) | `decklink` (AUR) |
+| GStreamer DeckLink plugin | `gst-plugins-bad-libs` |
+| Virtual camera kernel module | `v4l2loopback-dkms` |
+| Desktop notifications | `libnotify` |
+
+### Virtual camera setup (needs root, once)
+
+The plugin finds its virtual camera by the label "DeckLink Virtual Camera" and
+refuses to start without one. It never falls back to `/dev/video0`, which could
+be a real webcam. Create the device by copying
+[system/v4l2loopback.conf](system/v4l2loopback.conf) to
+`/etc/modprobe.d/v4l2loopback.conf` and making the module load at boot:
+
+```bash
+sudo cp system/v4l2loopback.conf /etc/modprobe.d/v4l2loopback.conf
+echo v4l2loopback | sudo tee /etc/modules-load.d/v4l2loopback.conf
+sudo modprobe v4l2loopback
+```
+
+If you already have v4l2loopback configured with that label, any `video_nr`
+works. If the module is already loaded with other options, unload it first
+(`sudo modprobe -r v4l2loopback`) or reboot.
 
 ## Install
 
@@ -57,20 +78,96 @@ omarchy plugin add https://github.com/TomZandt/omarchy-decklink.git --enable
 Plugins are added disabled so you can read the code first. Drop `--enable` to
 review it before turning it on. Update with `omarchy plugin update tzv.decklink`.
 
-## What it runs
+## Configuration
+
+Settings are saved to `~/.config/omarchy/decklink.conf` by the panel. It is a
+plain `KEY=VALUE` file that is parsed, never run as a script, and every value is
+checked against the known choices.
+
+| Key                   | Default | Meaning |
+|-----------------------|---------|---------|
+| `DECKLINK_DEVICE`     | `0`     | Card number (the panel shows a Card dropdown when you have more than one) |
+| `DECKLINK_CONNECTION` | `auto`  | `auto`, `hdmi`, `sdi`, `component`, `composite`, `svideo` |
+| `DECKLINK_MODE`       | `auto`  | Video mode, e.g. `1080i50`, `1080p25`, `720p50` |
+| `DECKLINK_FORMAT`     | `auto`  | `auto`, `8bit-yuv`, `10bit-yuv`, `8bit-argb`, `8bit-bgra`, `10bit-rgb` |
+| `DECKLINK_SINK`       | auto    | Loopback device to write to (`/dev/videoN`); normally found by label |
+
+The bar plugin also has one shell setting, `refreshIntervalSec` (default 5):
+how often the bar polls the status.
+
+## Other DeckLink models
+
+From [Blackmagic's model list](https://www.blackmagicdesign.com/products/decklink/models).
+"Capture" cards work as a webcam source; "playback" cards can't.
+
+| Model | Inputs | Max capture | Status |
+|-------|--------|-------------|--------|
+| **Mini Recorder** | HD-SDI, HDMI | 1080p30 | **Tested** |
+| Mini Recorder HD | 3G-SDI, HDMI | 1080p60 | Untested |
+| Mini Recorder 4K | 6G-SDI, HDMI 2.0a | 2160p30 | Untested |
+| Micro Recorder | HD-SDI, HDMI | 1080p30 | Untested |
+| SDI Micro | 3G-SDI | 1080p60 | Untested |
+| Duo 2, Duo 2 Mini | 4× 3G-SDI | 1080p60 | Untested, see below |
+| Quad 2 | 8× 3G-SDI | 1080p60 | Untested, see below |
+| SDI 4K | 6G-SDI | Ultra HD | Untested |
+| Studio 4K | SDI, HDMI, component, composite, S-Video | Ultra HD | Untested |
+| 4K Extreme 12G | 12G-SDI | Ultra HD 60p | Untested |
+| Quad HDMI Recorder | 4× HDMI 2.0b | Ultra HD, 4K | Untested, see below |
+| 8K Pro Mini, 8K Pro G2 | 12G-SDI (G2 adds HDMI 2.1) | 8K | Untested, see below |
+| Mini Monitor 4K / HD | n/a | n/a | **Playback only, won't work** |
+
+Things to know on other cards:
+
+- **Connection:** the dropdown lists every input type. Only the Studio 4K has
+  component, composite and S-Video. Pick one your card has, or leave it on Auto.
+- **Mode:** pick a mode your card and source support. A wrong mode streams
+  black, and the icon switches to the no-signal colour.
+- **Several cards or sub-devices:** the panel lists the cards GStreamer sees.
+  Cards with several channels (Duo 2, Quad 2, Quad HDMI Recorder, 8K Pro) may
+  also need a `profile` GStreamer setting that this plugin does not expose.
+- **4K and 8K:** the pipeline converts every frame to YUY2 and may deinterlace
+  on the CPU, which is heavy at those sizes.
+- **Find your card's modes:** `gst-inspect-1.0 decklinkvideosrc` and
+  `gst-device-monitor-1.0 Video/Source`.
+
+If you try another model, please open an issue with the model, what worked and
+what didn't, so this table can be updated.
+
+## How it works
+
+`backend.sh` runs a GStreamer pipeline
+(`decklinkvideosrc ! videoconvert ! deinterlace ! v4l2sink`) as a transient
+systemd user unit called `tzv-decklink`. Nothing is installed or enabled by the
+plugin, and nothing runs as root. The QML calls only `backend.sh` and holds no
+knowledge of the card; the lists of choices live in `backend.sh options`. Signal
+state comes from the pipeline's own "Signal lost / recovered" log lines.
+
+### What it runs
 
 `backend.sh` runs `systemd-run --user`, `systemctl --user`, `journalctl --user`,
-`gst-launch-1.0`, `pgrep` and `notify-send`, and writes only
-`~/.config/omarchy/decklink.conf`. The QML runs only `backend.sh`.
+`gst-launch-1.0`, `gst-device-monitor-1.0`, `pgrep` and `notify-send`. The only
+file it writes is `~/.config/omarchy/decklink.conf` (plus a `.lock` beside it).
 
-## Settings
+## Removal
 
-| Key                  | Default | Meaning                              |
-|----------------------|---------|--------------------------------------|
-| `refreshIntervalSec` | 5       | How often the bar polls the status   |
+```bash
+systemctl --user stop tzv-decklink     # if the camera is running
+omarchy plugin remove tzv.decklink
+rm -f ~/.config/omarchy/decklink.conf ~/.config/omarchy/decklink.conf.lock
+```
 
-Advanced overrides can go in `decklink.conf`: `DECKLINK_DEVICE` (card number,
-default 0) and `DECKLINK_SINK` (loopback device, default auto-detected).
+Optionally remove the virtual camera setup:
+
+```bash
+sudo rm /etc/modprobe.d/v4l2loopback.conf /etc/modules-load.d/v4l2loopback.conf
+```
+
+## Development
+
+```bash
+omarchy plugin validate .
+bash tests/backend.test.sh     # needs no card, systemd or desktop
+```
 
 ## License
 
