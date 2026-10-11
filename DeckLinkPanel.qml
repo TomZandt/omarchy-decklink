@@ -4,7 +4,7 @@ import Quickshell.Io
 import qs.Commons
 import qs.Ui
 
-// DeckLink: a Blackmagic DeckLink capture card as a webcam, from the Omarchy bar.
+// DeckLink: a Blackmagic Design DeckLink capture card as a webcam, from the Omarchy bar.
 //
 // All the work is done by backend.sh (GStreamer -> v4l2loopback, run as a
 // transient systemd user unit). Nothing starts by itself: the card serves one

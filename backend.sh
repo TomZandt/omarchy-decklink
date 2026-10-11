@@ -130,7 +130,7 @@ four-sub-devices-half|Four sub-devices, half duplex"
 
 
 # Embedded audio becomes a PipeWire microphone, "DeckLink Audio". HDMI carries
-# up to 8 channels and SDI up to 16 (Blackmagic's specs), so 16 is capped to 8 on HDMI.
+# up to 8 channels and SDI up to 16 (Blackmagic Design's specs), so 16 is capped to 8 on HDMI.
 AUDIO="off|Off
 2|Stereo (2 channels)
 8|8 channels
@@ -221,7 +221,7 @@ settings_json() {
 
 # ============================================================================
 # 2. Card catalogue. One row per model: pattern | connections | formats | profiles.
-#    First match wins. Source: Blackmagic's tech specs
+#    First match wins. Source: Blackmagic Design's tech specs
 #    (https://www.blackmagicdesign.com/products/decklink/techspecs/W-DLK-39).
 #    formats: "all" or "yuv" (YUV only). profiles: "yes" if the card has
 #    sub-device / duplex profiles. Unknown models get every choice.

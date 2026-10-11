@@ -9,7 +9,7 @@ and left-click to open a panel with a live preview and the card, input, video
 mode, pixel format and audio settings. Optionally, the card's embedded audio
 becomes a microphone.
 
-**Requires Blackmagic's official Desktop Video software** (the driver that
+**Requires Blackmagic Design's official Desktop Video software** (the driver that
 provides the `blackmagic_io` kernel module and makes the card visible to Linux;
 `decklink` in the AUR on Arch). Without it the plugin finds no card. See
 [Requirements](#requirements) for the other packages.
@@ -21,7 +21,7 @@ endorsed by, or connected to Blackmagic Design or Omarchy.
 
 > **Tested hardware: DeckLink Mini Recorder only.**
 > Every claim below was verified on one DeckLink Mini Recorder (the name the
-> driver reports; Blackmagic sells it today as the Mini Recorder HD) on Arch
+> driver reports; Blackmagic Design sells it today as the Mini Recorder HD) on Arch
 > Linux. Other models use the
 > same GStreamer element and *should* work, but are **untested**. They may need
 > a different connection, mode or pixel format. See [Other DeckLink
@@ -33,7 +33,7 @@ The card's embedded SDI or HDMI audio can be exposed as a microphone. Set
 **Audio** in the panel to 2, 8 or 16 channels (default Off). While the camera
 runs, a PipeWire source called "DeckLink Audio" appears, and it goes away when
 the camera stops, so it follows the same never-auto-start rule. HDMI carries up
-to 8 channels and SDI up to 16 (48 kHz, 24-bit, per Blackmagic's specs), so 16
+to 8 channels and SDI up to 16 (48 kHz, 24-bit, per Blackmagic Design's specs), so 16
 is capped to 8 on HDMI. Analog connections use the card's analog audio input.
 Audio needs `gst-plugin-pipewire`. The audio path is untested with a real
 source, because the tested card had nothing plugged in.
@@ -68,7 +68,7 @@ On Arch (package names as of writing):
 | What | Package |
 |------|---------|
 | Omarchy with the Quickshell shell | `omarchy` |
-| Blackmagic Desktop Video drivers (the `blackmagic_io` kernel module) | `decklink` (AUR) |
+| Blackmagic Design Desktop Video drivers (the `blackmagic_io` kernel module) | `decklink` (AUR) |
 | GStreamer DeckLink plugin | `gst-plugins-bad-libs` |
 | Virtual camera kernel module | `v4l2loopback-dkms` |
 | Desktop notifications | `libnotify` |
@@ -125,10 +125,10 @@ how often the bar polls the status.
 
 ## Other DeckLink models
 
-From [Blackmagic's model list](https://www.blackmagicdesign.com/products/decklink/models).
+From [Blackmagic Design's model list](https://www.blackmagicdesign.com/products/decklink/models).
 "Capture" cards work as a webcam source; "playback" cards can't.
 
-| Model | Capture inputs | Pixel formats (Blackmagic specs) | Status |
+| Model | Capture inputs | Pixel formats (Blackmagic Design specs) | Status |
 |-------|----------------|----------------------------------|--------|
 | **Mini Recorder (HD)** | 3G-SDI, HDMI | YUV 4:2:2 8/10-bit, RGB | **Tested** |
 | Mini Recorder 4K | 6G-SDI, HDMI 2.0a | YUV 4:2:2 8/10-bit, RGB | Untested |
@@ -144,7 +144,7 @@ From [Blackmagic's model list](https://www.blackmagicdesign.com/products/decklin
 | 8K Pro G2 | 4× 12G-SDI, HDMI 2.1 | YUV 4:2:2 8/10-bit, RGB | Untested, see profiles |
 | Mini Monitor 4K / HD | none (playback only) | n/a | **Won't work** |
 
-The card list, inputs and pixel formats follow Blackmagic's
+The card list, inputs and pixel formats follow Blackmagic Design's
 [technical specifications](https://www.blackmagicdesign.com/products/decklink/techspecs/W-DLK-39).
 
 The panel adapts to the selected card:
@@ -166,9 +166,9 @@ The panel adapts to the selected card:
 Things to know on other cards:
 
 - **Mode list limits:** the list comes from GStreamer's decklinkvideosrc, which
-  has no PsF modes and nothing above 60p, so Blackmagic's 1080PsF and 1080p/2K/UHD/4K 120p modes
+  has no PsF modes and nothing above 60p, so Blackmagic Design's 1080PsF and 1080p/2K/UHD/4K 120p modes
   can't be selected. The modes shown are also limited to what the driver reports for your card:
-  on the tested card that stops at 1080p30, although Blackmagic's spec for the Mini Recorder HD lists 1080p60.
+  on the tested card that stops at 1080p30, although Blackmagic Design's spec for the Mini Recorder HD lists 1080p60.
 - **Mode:** pick a mode your source sends. A wrong mode streams black, and the
   icon switches to the no-signal colour.
 - **4K and 8K:** the pipeline converts every frame to YUY2 and may deinterlace
