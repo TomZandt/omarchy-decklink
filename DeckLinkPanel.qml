@@ -83,14 +83,6 @@ Panel {
     if (opened) { say("", false); refresh(); loadChoices() }
   }
 
-  // omarchy-shell decklink <open|close|toggle>: handy for a keybinding and for screenshots.
-  IpcHandler {
-    target: "decklink"
-    function open(): void { root.open() }
-    function close(): void { root.close() }
-    function toggle(): void { root.toggle() }
-  }
-
   Timer {
     interval: Math.max(2, Number(root.setting("refreshIntervalSec", 5))) * 1000
     running: true
@@ -144,7 +136,7 @@ Panel {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: root.running ? "󰕧" : "󰗃"
+    text: String.fromCodePoint(root.running ? 0xF0567 : 0xF0568)   // video / video-off
     useActiveColor: false
     foreground: root.camState === "live" ? root.barForeground
       : (root.camState === "nosignal" || root.camState === "error") ? root.urgent
