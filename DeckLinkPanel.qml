@@ -54,8 +54,16 @@ Panel {
     if (!statusProcess.running) statusProcess.running = true
   }
 
+  // The options depend on the selected card. If a load is already running when
+  // the card changes, run it again once it finishes instead of keeping the old card's.
+  property bool optionsStale: false
+  function reloadOptions() {
+    if (optionsProcess.running) { optionsStale = true; return }
+    optionsProcess.running = true
+  }
+
   function loadChoices() {
-    if (!optionsProcess.running) optionsProcess.running = true
+    reloadOptions()
     if (!devicesProcess.running) devicesProcess.running = true
   }
 
@@ -75,7 +83,7 @@ Panel {
 
   Component.onCompleted: { refresh(); loadChoices() }
   // A different card has different inputs and modes.
-  onCurrentDeviceChanged: if (!optionsProcess.running) optionsProcess.running = true
+  onCurrentDeviceChanged: reloadOptions()
   readonly property string currentDevice: String(cfg.device)
   onOpenedChanged: {
     if (opened) { say("", false); refresh(); loadChoices() }
@@ -99,7 +107,11 @@ Panel {
     command: ["bash", root.backend, "options", String(root.cfg.device)]
     stdout: StdioCollector {
       waitForEnd: true
-      onStreamFinished: { var o = root.parseJson(text); if (o) root.options = o }
+      onStreamFinished: {
+        var o = root.parseJson(text)
+        if (o) root.options = o
+        if (root.optionsStale) { root.optionsStale = false; Qt.callLater(root.reloadOptions) }
+      }
     }
   }
 
@@ -121,7 +133,7 @@ Panel {
         root.say(line.replace(/^(ok|error): /, ""), line.indexOf("error:") === 0)
       }
     }
-    onExited: function(code, status) {
+    onExited: function(code) {
       if (code !== 0 && root.message === "") root.say("The DeckLink backend failed (exit " + code + ").", true)
       root.busy = false
       root.refresh()
@@ -259,7 +271,7 @@ Panel {
           Loader {
             id: previewLoader
             anchors.fill: parent
-            active: root.opened && root.running
+            active: root.opened && root.running && !root.busy
             sourceComponent: previewComponent
           }
 

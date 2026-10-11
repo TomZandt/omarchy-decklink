@@ -2,7 +2,7 @@
 # DeckLink virtual camera backend for the tzv.decklink Omarchy plugin.
 #
 # Runs a GStreamer pipeline (DeckLink capture card -> v4l2loopback) as a
-# transient systemd user unit, so there is nothing to install or enable.
+# transient systemd user unit, so there is nothing to set up or enable.
 # It only ever starts when you ask, because a card serves one app at a time:
 # while this runs OBS/Resolve can't use it, and vice versa.
 #
@@ -284,18 +284,18 @@ cmd_devices() {
     }
     BEGIN { printf "[" }
     /Device found:/ { flush(); found = 1; next }
-    found && /class[[:space:]]*:.*Hardware/ { hw = 1 }
     found && /model-name =/ { sub(/.*model-name = /, ""); model = $0 }
     found && /device-number =/ { sub(/.*device-number = /, ""); sub(/ .*/, ""); num = $0 }
     END { flush(); print "]" }'
 }
 
-cmd_start() {
+cmd_start() { # cmd_start [quiet]  (quiet: no desktop notifications, used by `set`)
+  local quiet=${1:-}
   if running; then echo "ok: already running"; return 0; fi
   local sink
   if ! sink=$(find_sink) || [[ ! -e "$sink" ]]; then
     echo "error: no virtual camera device. Load v4l2loopback with the label '$LOOPBACK_LABEL' (see the README)."
-    notify critical dialog-error "DeckLink camera failed to start" "No '$LOOPBACK_LABEL' device. See the README for the v4l2loopback setup."
+    [[ -z "$quiet" ]] && notify critical dialog-error "DeckLink camera failed to start" "No '$LOOPBACK_LABEL' device. See the README for the v4l2loopback setup."
     return 1
   fi
   systemctl --user reset-failed "$UNIT" 2>/dev/null
@@ -312,12 +312,12 @@ cmd_start() {
     sleep 0.5
     if ! running; then
       echo "error: failed to start. Is another app holding the card, or is the card number right?"
-      notify critical dialog-error "DeckLink camera failed to start" "Check nothing else (OBS, Resolve) is holding the card."
+      [[ -z "$quiet" ]] && notify critical dialog-error "DeckLink camera failed to start" "Check nothing else (OBS, Resolve) is holding the card."
       return 1
     fi
   done
   echo "ok: started"
-  notify normal camera-video "DeckLink camera started" "Available to apps as '$LOOPBACK_LABEL'."
+  [[ -z "$quiet" ]] && notify normal camera-video "DeckLink camera started" "Available to apps as '$LOOPBACK_LABEL'."
 }
 
 cmd_stop() {
@@ -343,15 +343,22 @@ cmd_set() {
   (
     flock 9
     local tmp; tmp=$(mktemp "$CONF.XXXXXX")
-    { [[ -r "$CONF" ]] && grep -v "^${var}=" "$CONF"; printf '%s=%s\n' "$var" "$value"; } > "$tmp"
+    # A different card has different inputs, modes and profiles, so a card
+    # change drops the other choices back to their defaults.
+    local drop="^${var}="
+    [[ "$key" == "device" ]] && drop="^DECKLINK_(DEVICE|CONNECTION|MODE|FORMAT|PROFILE)="
+    { [[ -r "$CONF" ]] && grep -v -E "$drop" "$CONF"; printf '%s=%s\n' "$var" "$value"; } > "$tmp"
     mv "$tmp" "$CONF"
   ) 9>"$CONF.lock"
 
   # Only restart if it is already running; otherwise just record the setting.
   if running; then
     systemctl --user stop "$UNIT"
+    local i; for i in 1 2 3 4 5 6; do running || break; sleep 0.5; done
+    sleep 0.5   # give the card a moment to be released
+    DEVICE=0 CONNECTION=auto MODE=auto FORMAT=auto PROFILE=default SINK=
     load_conf
-    if cmd_start >/dev/null; then echo "ok: $key = $value (restarted)"; else echo "error: could not restart with $key = $value"; return 1; fi
+    if cmd_start quiet >/dev/null; then echo "ok: $key = $value (restarted)"; else echo "error: could not restart with $key = $value"; return 1; fi
   else
     echo "ok: $key = $value (saved)"
   fi

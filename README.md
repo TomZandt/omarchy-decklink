@@ -88,8 +88,8 @@ checked against the known choices.
 
 | Key                   | Default | Meaning |
 |-----------------------|---------|---------|
-| `DECKLINK_DEVICE`     | `0`     | Card number (the panel shows a Card dropdown when you have more than one) |
-| `DECKLINK_CONNECTION` | `auto`  | `auto`, `hdmi`, `sdi`, `component`, `composite`, `svideo` |
+| `DECKLINK_DEVICE`     | `0`     | Card number (the panel's Capture device dropdown sets it) |
+| `DECKLINK_CONNECTION` | `auto`  | `auto`, `hdmi`, `sdi`, `component`, `composite`, `svideo`, `optical-sdi` |
 | `DECKLINK_MODE`       | `auto`  | Video mode, e.g. `1080i50`, `1080p25`, `720p50` |
 | `DECKLINK_PROFILE`    | `default` | Sub-device / duplex layout, Duo 2, Quad 2 and 8K Pro only: `one-sub-device-full`, `one-sub-device-half`, `two-sub-devices-full`, `two-sub-devices-half`, `four-sub-devices-half` |
 | `DECKLINK_FORMAT`     | `auto`  | `auto`, `8bit-yuv`, `10bit-yuv`, `8bit-argb`, `8bit-bgra`, `10bit-rgb` |
@@ -109,7 +109,7 @@ From [Blackmagic's model list](https://www.blackmagicdesign.com/products/decklin
 | Mini Recorder 4K | 6G-SDI, HDMI 2.0a | YUV 4:2:2 8/10-bit, RGB | Untested |
 | Micro Recorder | HD-SDI or HDMI (add-on connectors) | YUV 4:2:2 8/10-bit | Untested |
 | SDI Micro | 3G-SDI | YUV 4:2:2 8/10-bit, RGB | Untested |
-| SDI 4K | 6G-SDI | YUV 4:2:2 10-bit, RGB | Untested |
+| SDI 4K | 6G-SDI | YUV 4:2:2, RGB | Untested |
 | Studio 4K | SDI, HDMI, component, composite, S-Video | YUV 4:2:2 8/10-bit, RGB | Untested |
 | 4K Extreme 12G | 12G-SDI, HDMI, component, composite, S-Video, optical (optional) | YUV 4:2:2 8/10-bit, RGB | Untested |
 | Quad HDMI Recorder | 4× HDMI 2.0b | YUV 4:2:2 8/10-bit, RGB | Untested |
@@ -134,16 +134,20 @@ The panel adapts to the selected card:
   Recorder). An unrecognised model shows every connection.
 - **Pixel formats** follow the tech specs: YUV only for the Micro Recorder,
   YUV and RGB for the rest. An unrecognised model shows every format.
-- **Card** is a dropdown that appears when GStreamer sees more than one card.
-  Changing it reloads the other dropdowns for that card.
+- **Capture device** is always shown, listing the DeckLink cards GStreamer
+  sees. Changing it reloads the other dropdowns for that card.
 - **Sub-device profile** appears only for the Duo 2, Quad 2 and 8K Pro.
 
 Things to know on other cards:
 
+- **Mode list limits:** the list comes from GStreamer's decklinkvideosrc, which
+  has no PsF modes and nothing above 60p, so Blackmagic's 1080PsF and 1080p/2K/UHD/4K 120p modes
+  can't be selected. The modes shown are also limited to what the driver reports for your card:
+  on the tested card that stops at 1080p30, although Blackmagic's spec for the Mini Recorder HD lists 1080p60.
 - **Mode:** pick a mode your source sends. A wrong mode streams black, and the
   icon switches to the no-signal colour.
 - **4K and 8K:** the pipeline converts every frame to YUY2 and may deinterlace
-  on the CPU, which is heavy at those sizes. 4K DCI and 8K modes are not offered.
+  on the CPU, which is heavy at those sizes.
 - **Pixel format:** RGB formats have limits that depend on the mode (for
   example RGB up to 1080p30 on the Mini Recorder HD over SDI). If a mode shows no
   picture in RGB, use 10-bit or 8-bit YUV.
@@ -165,7 +169,8 @@ state comes from the pipeline's own "Signal lost / recovered" log lines.
 ### What it runs
 
 `backend.sh` runs `systemd-run --user`, `systemctl --user`, `journalctl --user`,
-`gst-launch-1.0`, `gst-device-monitor-1.0`, `pgrep` and `notify-send`. The only
+`gst-launch-1.0`, `gst-device-monitor-1.0`, `pgrep` and `notify-send`, plus
+standard tools (`timeout`, `flock`, `mktemp`, `readlink`, `awk`, `sed`, `grep`). The only
 file it writes is `~/.config/omarchy/decklink.conf` (plus a `.lock` beside it).
 
 ## Removal

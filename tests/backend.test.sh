@@ -21,6 +21,7 @@ check "set rejects unknown mode"  '! bash "$B" set mode "pal; rm -rf ~" >/dev/nu
 check "set rejects unknown key"   '! bash "$B" set nope 1 >/dev/null'
 check "set saves a profile"       'bash "$B" set profile two-sub-devices-full >/dev/null && bash "$B" status | grep -q "\"profile\":\"two-sub-devices-full\""'
 check "set rejects bad profile"   '! bash "$B" set profile nope >/dev/null'
+check "card change resets the rest" 'bash "$B" set mode pal >/dev/null && bash "$B" set device 1 >/dev/null && bash "$B" status | grep -q "\"mode\":\"auto\"" && bash "$B" status | grep -q "\"device\":\"1\""'
 check "set rejects bad card"      '! bash "$B" set device "1;x" >/dev/null'
 
 # A hand-edited config must neither execute nor corrupt the JSON.
