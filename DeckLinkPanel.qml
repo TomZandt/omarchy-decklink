@@ -251,12 +251,48 @@ Panel {
         // Live picture from the virtual camera. It reads the loopback device, not
         // the card, so it can't take the card from anything. It only runs while
         // the panel is open and the camera is running.
-        Loader {
-          id: previewLoader
+        // Always shown, so the panel keeps one shape. It is black with a prompt
+        // while the camera is off.
+        Rectangle {
           width: parent.width
-          height: active ? Math.round(width * 9 / 16) : 0
-          active: root.opened && root.running
-          sourceComponent: previewComponent
+          height: Math.round(width * 9 / 16)
+          color: "black"
+          radius: Style.cornerRadius
+          clip: true
+
+          Loader {
+            id: previewLoader
+            anchors.fill: parent
+            active: root.opened && root.running
+            sourceComponent: previewComponent
+          }
+
+          Column {
+            anchors.centerIn: parent
+            visible: !root.running
+            spacing: Style.space(10)
+
+            Text {
+              anchors.horizontalCenter: parent.horizontalCenter
+              textFormat: Text.PlainText
+              text: root.camState === "error" ? "Backend not responding" : "Camera off"
+              color: "white"
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.body
+              font.bold: true
+            }
+
+            Button {
+              anchors.horizontalCenter: parent.horizontalCenter
+              text: "Start camera"
+              iconText: "󰐊"
+              foreground: "white"
+              fontFamily: root.fontFamily
+              bordered: true
+              enabled: !root.busy
+              onClicked: root.toggleCamera()
+            }
+          }
         }
 
         PanelHero {
@@ -327,11 +363,11 @@ Panel {
         PanelSectionHeader { text: "INPUT"; foreground: root.foreground; fontFamily: root.fontFamily }
 
         Dropdown {
-          visible: root.devices.length > 1
           width: parent.width
-          label: "Card"
+          label: "Capture device"
           value: root.cfg.device
-          options: root.devices
+          options: root.devices.length > 0 ? root.devices
+            : [{ value: root.cfg.device, label: "Card " + root.cfg.device }]
           enabled: !root.busy
           foreground: root.foreground
           fontFamily: root.fontFamily
