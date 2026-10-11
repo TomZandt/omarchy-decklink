@@ -317,7 +317,9 @@ cmd_start() { # cmd_start [quiet]  (quiet: no desktop notifications, used by `se
     fi
   done
   echo "ok: started"
-  [[ -z "$quiet" ]] && notify normal camera-video "DeckLink camera started" "Available to apps as '$LOOPBACK_LABEL'."
+  if [[ -z "$quiet" ]]; then
+    notify normal camera-video "DeckLink camera started" "Available to apps as '$LOOPBACK_LABEL'."
+  fi
 }
 
 cmd_stop() {
