@@ -89,6 +89,7 @@ checked against the known choices.
 | `DECKLINK_DEVICE`     | `0`     | Card number (the panel shows a Card dropdown when you have more than one) |
 | `DECKLINK_CONNECTION` | `auto`  | `auto`, `hdmi`, `sdi`, `component`, `composite`, `svideo` |
 | `DECKLINK_MODE`       | `auto`  | Video mode, e.g. `1080i50`, `1080p25`, `720p50` |
+| `DECKLINK_PROFILE`    | `default` | Sub-device / duplex layout, Duo 2, Quad 2 and 8K Pro only: `one-sub-device-full`, `one-sub-device-half`, `two-sub-devices-full`, `two-sub-devices-half`, `four-sub-devices-half` |
 | `DECKLINK_FORMAT`     | `auto`  | `auto`, `8bit-yuv`, `10bit-yuv`, `8bit-argb`, `8bit-bgra`, `10bit-rgb` |
 | `DECKLINK_SINK`       | auto    | Loopback device to write to (`/dev/videoN`); normally found by label |
 
@@ -107,26 +108,36 @@ From [Blackmagic's model list](https://www.blackmagicdesign.com/products/decklin
 | Mini Recorder 4K | 6G-SDI, HDMI 2.0a | 2160p30 | Untested |
 | Micro Recorder | HD-SDI, HDMI | 1080p30 | Untested |
 | SDI Micro | 3G-SDI | 1080p60 | Untested |
-| Duo 2, Duo 2 Mini | 4× 3G-SDI | 1080p60 | Untested, see below |
-| Quad 2 | 8× 3G-SDI | 1080p60 | Untested, see below |
+| Duo 2, Duo 2 Mini | 4× 3G-SDI | 1080p60 | Untested |
+| Quad 2 | 8× 3G-SDI | 1080p60 | Untested |
 | SDI 4K | 6G-SDI | Ultra HD | Untested |
 | Studio 4K | SDI, HDMI, component, composite, S-Video | Ultra HD | Untested |
 | 4K Extreme 12G | 12G-SDI | Ultra HD 60p | Untested |
-| Quad HDMI Recorder | 4× HDMI 2.0b | Ultra HD, 4K | Untested, see below |
-| 8K Pro Mini, 8K Pro G2 | 12G-SDI (G2 adds HDMI 2.1) | 8K | Untested, see below |
+| Quad HDMI Recorder | 4× HDMI 2.0b | Ultra HD, 4K | Untested |
+| 8K Pro Mini, 8K Pro G2 | 12G-SDI (G2 adds HDMI 2.1) | 8K | Untested |
 | Mini Monitor 4K / HD | n/a | n/a | **Playback only, won't work** |
+
+The panel adapts to the selected card:
+
+- **Modes** are filtered to what the card itself reports to GStreamer
+  (`gst-device-monitor-1.0 Video/Source`), so a Mini Recorder only offers SD,
+  1080 up to 30p/60i and 720p, while a 4K card also offers the 2160 modes.
+  If the card can't be queried, every mode is shown.
+- **Connections** are filtered by model name using the table above (HDMI and
+  SDI for most cards, analog inputs for the Studio 4K only, HDMI only for the
+  Quad HDMI Recorder). An unrecognised model shows every connection.
+- **Card** is a dropdown that appears when GStreamer sees more than one card.
+  Changing it reloads the other dropdowns for that card.
+- **Sub-device profile** appears only for the Duo 2, Quad 2 and 8K Pro.
 
 Things to know on other cards:
 
-- **Connection:** the dropdown lists every input type. Only the Studio 4K has
-  component, composite and S-Video. Pick one your card has, or leave it on Auto.
-- **Mode:** pick a mode your card and source support. A wrong mode streams
-  black, and the icon switches to the no-signal colour.
-- **Several cards or sub-devices:** the panel lists the cards GStreamer sees.
-  Cards with several channels (Duo 2, Quad 2, Quad HDMI Recorder, 8K Pro) may
-  also need a `profile` GStreamer setting that this plugin does not expose.
+- **Mode:** pick a mode your source sends. A wrong mode streams black, and the
+  icon switches to the no-signal colour.
 - **4K and 8K:** the pipeline converts every frame to YUY2 and may deinterlace
-  on the CPU, which is heavy at those sizes.
+  on the CPU, which is heavy at those sizes. 4K DCI and 8K modes are not offered.
+- **Pixel format** is not filtered by card. Which formats work depends on the
+  card, so try 8-bit YUV first.
 - **Find your card's modes:** `gst-inspect-1.0 decklinkvideosrc` and
   `gst-device-monitor-1.0 Video/Source`.
 

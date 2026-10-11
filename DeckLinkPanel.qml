@@ -20,8 +20,8 @@ Panel {
 
   property string camState: "off"    // off | live | nosignal | error
   property string holder: ""          // another app that has the card (obs, resolve)
-  property var cfg: ({ device: "0", connection: "auto", mode: "auto", format: "auto" })
-  property var options: ({ connection: [], mode: [], format: [] })   // from backend.sh options
+  property var cfg: ({ device: "0", connection: "auto", mode: "auto", format: "auto", profile: "default" })
+  property var options: ({ model: "", connection: [], mode: [], format: [], profile: [] })   // from backend.sh options, filtered to the selected card
   property var devices: []            // capture cards found, from backend.sh devices
   property string sink: ""
   property string message: ""
@@ -48,7 +48,7 @@ Panel {
     camState = o.state
     holder = o.holder
     sink = o.sink
-    cfg = { device: o.device, connection: o.connection, mode: o.mode, format: o.format }
+    cfg = { device: o.device, connection: o.connection, mode: o.mode, format: o.format, profile: o.profile }
   }
 
   function refresh() {
@@ -75,6 +75,9 @@ Panel {
   implicitHeight: button.implicitHeight
 
   Component.onCompleted: { refresh(); loadChoices() }
+  // A different card has different inputs and modes.
+  onCurrentDeviceChanged: if (!optionsProcess.running) optionsProcess.running = true
+  readonly property string currentDevice: String(cfg.device)
   onOpenedChanged: {
     if (opened) { say("", false); refresh(); loadChoices() }
   }
@@ -94,7 +97,7 @@ Panel {
 
   Process {
     id: optionsProcess
-    command: ["bash", root.backend, "options"]
+    command: ["bash", root.backend, "options", String(root.cfg.device)]
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: { var o = root.parseJson(text); if (o) root.options = o }
@@ -251,10 +254,13 @@ Panel {
           model: [
             { key: "connection", label: "Connection" },
             { key: "mode", label: "Video mode" },
-            { key: "format", label: "Pixel format" }
+            { key: "format", label: "Pixel format" },
+            { key: "profile", label: "Sub-device profile" }
           ]
           delegate: Dropdown {
             required property var modelData
+            // Only the Duo 2, Quad 2 and 8K Pro offer more than "default".
+            visible: root.options[modelData.key].length > 1
             width: column.width
             label: modelData.label
             value: root.cfg[modelData.key]
@@ -264,6 +270,17 @@ Panel {
             fontFamily: root.fontFamily
             onChanged: function(v) { root.setSetting(modelData.key, v) }
           }
+        }
+
+        Text {
+          visible: root.options.model !== ""
+          width: parent.width
+          text: "Modes and inputs are filtered to what " + root.options.model + " reports."
+          textFormat: Text.PlainText
+          color: root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.bodySmall
+          wrapMode: Text.WordWrap
         }
 
         Text {

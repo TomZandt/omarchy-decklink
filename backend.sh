@@ -11,13 +11,14 @@
 #
 # Usage: backend.sh <command>
 #   status             one JSON line: state, settings, sink, holder
-#   options            one JSON line: the choices for each setting
+#   options [N]        one JSON line: the choices for each setting, filtered to what card N
+#                      (default: the saved card) supports
 #   devices            one JSON line: the capture cards found
 #   start              start the bridge
 #   stop               stop the bridge
 #   set KEY VALUE      save a setting; restarts the bridge only if it is running
 #   run                the pipeline itself (used by the transient unit)
-# KEY is one of: device, connection, mode, format.
+# KEY is one of: device, connection, mode, format, profile.
 set -uo pipefail
 
 UNIT=tzv-decklink
@@ -26,7 +27,9 @@ LOOPBACK_LABEL="DeckLink Virtual Camera"
 SELF=$(readlink -f "${BASH_SOURCE[0]}")
 
 # ---- choices ---------------------------------------------------------------
-# One table, read by `options`, `set` and the panel. "value|label" per line.
+# One table, read by `options`, `set` and the panel. "value|label" per line;
+# modes carry a third field, the caps the card reports for that mode
+# (WxH,framerate,i|p), used to filter the list to what the card supports.
 # Only the Mini Recorder is tested; the rest come from GStreamer's
 # decklinkvideosrc (gst-inspect-1.0 decklinkvideosrc).
 
@@ -37,37 +40,37 @@ component|Component
 composite|Composite
 svideo|S-Video"
 
-MODES="auto|Auto
-ntsc|525i59.94 NTSC
-ntsc2398|525i59.94 NTSC (23.98)
-pal|625i50 PAL
-ntsc-p|525p59.94 NTSC
-pal-p|625p50 PAL
-1080p2398|1080p23.98
-1080p24|1080p24
-1080p25|1080p25
-1080p2997|1080p29.97
-1080p30|1080p30
-1080i50|1080i50
-1080i5994|1080i59.94
-1080i60|1080i60
-1080p50|1080p50
-1080p5994|1080p59.94
-1080p60|1080p60
-720p50|720p50
-720p5994|720p59.94
-720p60|720p60
-2kdcip2398|2K DCI 23.98p
-2kdcip24|2K DCI 24p
-2kdcip25|2K DCI 25p
-2160p2398|4K 2160p23.98
-2160p24|4K 2160p24
-2160p25|4K 2160p25
-2160p2997|4K 2160p29.97
-2160p30|4K 2160p30
-2160p50|4K 2160p50
-2160p5994|4K 2160p59.94
-2160p60|4K 2160p60"
+MODES="auto|Auto|
+ntsc|525i59.94 NTSC|720x486,30000/1001,i
+ntsc2398|525i59.94 NTSC (23.98)|720x486,24000/1001,i
+pal|625i50 PAL|720x576,25/1,i
+ntsc-p|525p59.94 NTSC|720x486,30000/1001,p
+pal-p|625p50 PAL|720x576,25/1,p
+1080p2398|1080p23.98|1920x1080,24000/1001,p
+1080p24|1080p24|1920x1080,24/1,p
+1080p25|1080p25|1920x1080,25/1,p
+1080p2997|1080p29.97|1920x1080,30000/1001,p
+1080p30|1080p30|1920x1080,30/1,p
+1080i50|1080i50|1920x1080,25/1,i
+1080i5994|1080i59.94|1920x1080,30000/1001,i
+1080i60|1080i60|1920x1080,30/1,i
+1080p50|1080p50|1920x1080,50/1,p
+1080p5994|1080p59.94|1920x1080,60000/1001,p
+1080p60|1080p60|1920x1080,60/1,p
+720p50|720p50|1280x720,50/1,p
+720p5994|720p59.94|1280x720,60000/1001,p
+720p60|720p60|1280x720,60/1,p
+2kdcip2398|2K DCI 23.98p|2048x1080,24000/1001,p
+2kdcip24|2K DCI 24p|2048x1080,24/1,p
+2kdcip25|2K DCI 25p|2048x1080,25/1,p
+2160p2398|4K 2160p23.98|3840x2160,24000/1001,p
+2160p24|4K 2160p24|3840x2160,24/1,p
+2160p25|4K 2160p25|3840x2160,25/1,p
+2160p2997|4K 2160p29.97|3840x2160,30000/1001,p
+2160p30|4K 2160p30|3840x2160,30/1,p
+2160p50|4K 2160p50|3840x2160,50/1,p
+2160p5994|4K 2160p59.94|3840x2160,60000/1001,p
+2160p60|4K 2160p60|3840x2160,60/1,p"
 
 FORMATS="auto|Auto
 8bit-yuv|8-bit YUV
@@ -75,6 +78,14 @@ FORMATS="auto|Auto
 8bit-argb|8-bit ARGB
 8bit-bgra|8-bit BGRA
 10bit-rgb|10-bit RGB"
+
+# Only the Duo 2, Quad 2 and 8K Pro have profiles (sub-device / duplex layouts).
+PROFILES="default|Default (don't change)
+one-sub-device-full|One sub-device, full duplex
+one-sub-device-half|One sub-device, half duplex
+two-sub-devices-full|Two sub-devices, full duplex
+two-sub-devices-half|Two sub-devices, half duplex
+four-sub-devices-half|Four sub-devices, half duplex"
 
 in_table() { # in_table <table> <value>
   printf '%s\n' "$1" | cut -d'|' -f1 | grep -qxF -- "$2"
@@ -88,7 +99,7 @@ table_json() { # table_json <table>  ->  [{"value":"..","label":".."},..]
 # decklink.conf is KEY=VALUE lines. It is parsed, never sourced, and each value
 # is checked, so a hand-edited file can't run code or break the JSON.
 
-DEVICE=0 CONNECTION=auto MODE=auto FORMAT=auto SINK=
+DEVICE=0 CONNECTION=auto MODE=auto FORMAT=auto PROFILE=default SINK=
 
 load_conf() {
   [[ -r "$CONF" ]] || return 0
@@ -99,6 +110,7 @@ load_conf() {
       DECKLINK_CONNECTION) in_table "$CONNECTIONS" "$v" && CONNECTION=$v ;;
       DECKLINK_MODE)       in_table "$MODES" "$v" && MODE=$v ;;
       DECKLINK_FORMAT)     in_table "$FORMATS" "$v" && FORMAT=$v ;;
+      DECKLINK_PROFILE)    in_table "$PROFILES" "$v" && PROFILE=$v ;;
       DECKLINK_SINK)       [[ "$v" =~ ^/dev/video[0-9]+$ ]] && SINK=$v ;;
     esac
   done < "$CONF"
@@ -154,13 +166,64 @@ cmd_status() {
       *) state=live ;;
     esac
   fi
-  printf '{"state":"%s","device":"%s","connection":"%s","mode":"%s","format":"%s","holder":"%s","sink":"%s"}\n' \
-    "$state" "$DEVICE" "$CONNECTION" "$MODE" "$FORMAT" "$holder_name" "$sink"
+  printf '{"state":"%s","device":"%s","connection":"%s","mode":"%s","format":"%s","profile":"%s","holder":"%s","sink":"%s"}\n' \
+    "$state" "$DEVICE" "$CONNECTION" "$MODE" "$FORMAT" "$PROFILE" "$holder_name" "$sink"
+}
+
+# What a card reports, from GStreamer: "model <name>" then one "caps WxH,fps,i|p"
+# per supported mode. Prints nothing if the card isn't found.
+card_info() { # card_info <device-number>
+  timeout 10 gst-device-monitor-1.0 Video/Source 2>/dev/null | awk -v want="$1" '
+    function flush() {
+      if (found && num == want) { print "model " model; printf "%s", caps }
+      found = 0; model = ""; num = ""; caps = ""
+    }
+    /Device found:/ { flush(); found = 1; next }
+    found && /video\/x-raw/ {
+      w = h = fps = il = ""
+      if (match($0, /width=[0-9]+/))  w = substr($0, RSTART + 6, RLENGTH - 6)
+      if (match($0, /height=[0-9]+/)) h = substr($0, RSTART + 7, RLENGTH - 7)
+      if (match($0, /framerate=[0-9]+\/[0-9]+/)) fps = substr($0, RSTART + 10, RLENGTH - 10)
+      il = ($0 ~ /interlace-mode=interleaved/) ? "i" : "p"
+      if (w && h && fps) caps = caps "caps " w "x" h "," fps "," il "\n"
+    }
+    found && /model-name =/ { sub(/.*model-name = /, ""); model = $0 }
+    found && /device-number =/ { sub(/.*device-number = /, ""); sub(/ .*/, ""); num = $0 }
+    END { flush() }'
+}
+
+# Connections the card has, from its model name. Unknown models get every choice.
+connections_for() { # connections_for <model>
+  local keep
+  case "$1" in
+    *"Studio 4K"*)                       keep="auto hdmi sdi component composite svideo" ;;
+    *"Quad HDMI"*)                       keep="auto hdmi" ;;
+    *"8K Pro G2"*|*"Mini Recorder"*|*"Micro Recorder"*) keep="auto hdmi sdi" ;;
+    *SDI*|*Duo*|*"Quad 2"*|*"4K Extreme"*|*"8K Pro"*)   keep="auto sdi" ;;
+    *) printf '%s\n' "$CONNECTIONS"; return ;;
+  esac
+  printf '%s\n' "$CONNECTIONS" | awk -F'|' -v keep=" $keep " 'index(keep, " " $1 " ")'
 }
 
 cmd_options() {
-  printf '{"connection":%s,"mode":%s,"format":%s}\n' \
-    "$(table_json "$CONNECTIONS")" "$(table_json "$MODES")" "$(table_json "$FORMATS")"
+  local dev=${1:-$DEVICE} info model modes connections profiles="default|Default (don't change)"
+  [[ "$dev" =~ ^[0-9]+$ ]] || dev=$DEVICE
+  info=$(card_info "$dev")
+  model=$(printf '%s\n' "$info" | sed -n 's/^model //p')
+  modes=$MODES connections=$CONNECTIONS
+  if [[ -n "$info" ]]; then
+    connections=$(connections_for "$model")
+    case "$model" in *Duo*|*"Quad 2"*|*"8K Pro"*) profiles=$PROFILES ;; esac
+    local caps; caps=$(printf '%s\n' "$info" | sed -n 's/^caps //p')
+    # Keep Auto and every mode the card reports. If it reports none we know, show all.
+    local filtered
+    filtered=$(printf '%s\n' "$MODES" | awk -F'|' -v caps="$caps" '
+      BEGIN { n = split(caps, c, "\n"); for (i = 1; i <= n; i++) have[c[i]] = 1 }
+      $3 == "" || have[$3]')
+    [[ $(printf '%s\n' "$filtered" | wc -l) -gt 1 ]] && modes=$filtered
+  fi
+  printf '{"model":"%s","connection":%s,"mode":%s,"format":%s,"profile":%s}\n' \
+    "${model//[^A-Za-z0-9 ._-]/}" "$(table_json "$connections")" "$(table_json "$modes")" "$(table_json "$FORMATS")" "$(table_json "$profiles")"
 }
 
 # Capture cards GStreamer can see, in device-number order. Playback-only cards
@@ -216,6 +279,7 @@ cmd_set() {
     device)     var=DECKLINK_DEVICE;     [[ "$value" =~ ^[0-9]+$ ]] || { echo "error: bad card number"; return 1; } ;;
     connection) var=DECKLINK_CONNECTION; in_table "$CONNECTIONS" "$value" || { echo "error: unknown connection"; return 1; } ;;
     mode)       var=DECKLINK_MODE;       in_table "$MODES" "$value" || { echo "error: unknown mode"; return 1; } ;;
+    profile)    var=DECKLINK_PROFILE;    in_table "$PROFILES" "$value" || { echo "error: unknown profile"; return 1; } ;;
     format)     var=DECKLINK_FORMAT;     in_table "$FORMATS" "$value" || { echo "error: unknown format"; return 1; } ;;
     *) echo "error: unknown setting: $key"; return 1 ;;
   esac
@@ -245,9 +309,11 @@ cmd_run() {
   local sink; sink=$(find_sink) || { echo "no virtual camera device" >&2; exit 1; }
   # The first videoconvert is required for 10-bit (v210), which deinterlace
   # cannot consume directly. Colorimetry comes from the source's display mode.
+  local profile_arg=()
+  [[ "$PROFILE" != "default" ]] && profile_arg=(profile="$PROFILE")
   exec gst-launch-1.0 \
     decklinkvideosrc device-number="$DEVICE" connection="$CONNECTION" \
-                     mode="$MODE" video-format="$format" \
+                     mode="$MODE" video-format="$format" "${profile_arg[@]}" \
     ! videoconvert \
     ! deinterlace mode=auto \
     ! videoconvert \
@@ -258,11 +324,11 @@ cmd_run() {
 load_conf
 case "${1:-}" in
   status)  cmd_status ;;
-  options) cmd_options ;;
+  options) shift; cmd_options "$@" ;;
   devices) cmd_devices ;;
   start)   cmd_start ;;
   stop)    cmd_stop ;;
   set)     shift; cmd_set "$@" ;;
   run)     cmd_run ;;
-  *) echo "usage: ${0##*/} <status|options|devices|start|stop|set KEY VALUE>" >&2; exit 2 ;;
+  *) echo "usage: ${0##*/} <status|options [N]|devices|start|stop|set KEY VALUE>" >&2; exit 2 ;;
 esac
