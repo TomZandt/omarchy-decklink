@@ -61,16 +61,36 @@ Device found:
 	properties:
 		device-number = 1 (0x00000001) (guint)
 		model-name = DeckLink Duo 2
+
+Device found:
+
+	name  : DeckLink 4K Extreme 12G (Video Capture)
+	class : Video/Source/Hardware
+	caps  : video/x-raw, width=1920, height=1080, pixel-aspect-ratio=1/1, interlace-mode=progressive, framerate=25/1
+	properties:
+		device-number = 2 (0x00000002) (guint)
+		model-name = DeckLink 4K Extreme 12G
+
+Device found:
+
+	name  : DeckLink Micro Recorder (Video Capture)
+	class : Video/Source/Hardware
+	caps  : video/x-raw, width=1920, height=1080, pixel-aspect-ratio=1/1, interlace-mode=progressive, framerate=25/1
+	properties:
+		device-number = 3 (0x00000003) (guint)
+		model-name = DeckLink Micro Recorder
 OUT
 FAKEEOF
 chmod +x "$FAKE/gst-device-monitor-1.0"
 vals() { PATH="$FAKE:$PATH" bash "$B" options "$1" | python3 -c "import json,sys;d=json.load(sys.stdin);print(' '.join(x['value'] for x in d['$2']))"; }
 check "Studio 4K has analog inputs" '[ "$(vals 0 connection)" = "auto hdmi sdi component composite svideo" ]'
 check "Studio 4K modes are its caps" '[ "$(vals 0 mode)" = "auto 1080p25 2160p30" ]'
+check "Extreme 12G adds optical"    '[ "$(PATH="$FAKE:$PATH" bash "$B" options 2 | python3 -c "import json,sys;print(\" \".join(x[\"value\"] for x in json.load(sys.stdin)[\"connection\"]))")" = "auto hdmi sdi component composite svideo optical-sdi" ]'
+check "Micro Recorder is YUV only"  '[ "$(vals 3 format)" = "auto 8bit-yuv 10bit-yuv" ]'
 check "Duo 2 is SDI only"           '[ "$(vals 1 connection)" = "auto sdi" ]'
 check "Duo 2 offers profiles"       '[ "$(vals 1 profile | wc -w)" = 6 ]'
 check "Studio 4K has no profiles"   '[ "$(vals 0 profile)" = "default" ]'
-check "devices lists only DeckLink cards" '[ "$(PATH="$FAKE:$PATH" bash "$B" devices | python3 -c "import json,sys;print(len(json.load(sys.stdin)))")" = 2 ]'
+check "devices lists only DeckLink cards" '[ "$(PATH="$FAKE:$PATH" bash "$B" devices | python3 -c "import json,sys;print(len(json.load(sys.stdin)))")" = 4 ]'
 check "unknown card shows all modes" '[ "$(vals 7 mode | wc -w)" -gt 20 ]'
 rm -rf "$FAKE"
 

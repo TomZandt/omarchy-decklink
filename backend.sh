@@ -30,7 +30,7 @@ SELF=$(readlink -f "${BASH_SOURCE[0]}")
 # One table, read by `options`, `set` and the panel. "value|label" per line;
 # modes carry a third field, the caps the card reports for that mode
 # (WxH,framerate,i|p), used to filter the list to what the card supports.
-# Only the Mini Recorder is tested; the rest come from GStreamer's
+# Only one card is tested (see the README); the rest come from Blackmagic's tech specs and GStreamer's
 # decklinkvideosrc (gst-inspect-1.0 decklinkvideosrc).
 
 CONNECTIONS="auto|Auto
@@ -38,7 +38,8 @@ hdmi|HDMI
 sdi|SDI
 component|Component
 composite|Composite
-svideo|S-Video"
+svideo|S-Video
+optical-sdi|Optical SDI"
 
 MODES="auto|Auto|
 ntsc|525i59.94 NTSC|720x486,30000/1001,i
@@ -221,27 +222,40 @@ card_info() { # card_info <device-number>
     END { flush() }'
 }
 
-# Connections the card has, from its model name. Unknown models get every choice.
+# Connections the card has, from its model name and Blackmagic's tech specs.
+# Unknown models get every choice.
 connections_for() { # connections_for <model>
   local keep
   case "$1" in
-    *"Studio 4K"*)                       keep="auto hdmi sdi component composite svideo" ;;
+    *"4K Extreme"*)                      keep="auto sdi hdmi component composite svideo optical-sdi" ;;
+    *"Studio 4K"*)                       keep="auto sdi hdmi component composite svideo" ;;
     *"Quad HDMI"*)                       keep="auto hdmi" ;;
-    *"8K Pro G2"*|*"Mini Recorder"*|*"Micro Recorder"*) keep="auto hdmi sdi" ;;
-    *SDI*|*Duo*|*"Quad 2"*|*"4K Extreme"*|*"8K Pro"*)   keep="auto sdi" ;;
+    *"8K Pro G2"*|*"Mini Recorder"*|*"Micro Recorder"*) keep="auto sdi hdmi" ;;
+    *SDI*|*Duo*|*"Quad 2"*|*"8K Pro"*)   keep="auto sdi" ;;
     *) printf '%s\n' "$CONNECTIONS"; return ;;
   esac
   printf '%s\n' "$CONNECTIONS" | awk -F'|' -v keep=" $keep " 'index(keep, " " $1 " ")'
 }
 
+# Pixel formats the card captures, from the tech specs: every capture card does
+# 8/10-bit YUV 4:2:2, and all but the Micro Recorder also do RGB 4:4:4.
+# Unknown models get every choice.
+formats_for() { # formats_for <model>
+  case "$1" in
+    *"Micro Recorder"*) printf '%s\n' "$FORMATS" | awk -F'|' '$1 == "auto" || $1 ~ /yuv$/' ;;
+    *) printf '%s\n' "$FORMATS" ;;
+  esac
+}
+
 cmd_options() {
-  local dev=${1:-$DEVICE} info model modes connections profiles="default|Default (don't change)"
+  local dev=${1:-$DEVICE} info model modes connections formats profiles="default|Default (don't change)"
   [[ "$dev" =~ ^[0-9]+$ ]] || dev=$DEVICE
   info=$(card_info "$dev")
   model=$(printf '%s\n' "$info" | sed -n 's/^model //p')
-  modes=$MODES connections=$CONNECTIONS
+  modes=$MODES connections=$CONNECTIONS formats=$FORMATS
   if [[ -n "$info" ]]; then
     connections=$(connections_for "$model")
+    formats=$(formats_for "$model")
     case "$model" in *Duo*|*"Quad 2"*|*"8K Pro"*) profiles=$PROFILES ;; esac
     local caps; caps=$(printf '%s\n' "$info" | sed -n 's/^caps //p')
     # Keep Auto and every mode the card reports. If it reports none we know, show all.
@@ -252,7 +266,7 @@ cmd_options() {
     [[ $(printf '%s\n' "$filtered" | wc -l) -gt 1 ]] && modes=$filtered
   fi
   printf '{"model":"%s","connection":%s,"mode":%s,"format":%s,"profile":%s}\n' \
-    "${model//[^A-Za-z0-9 ._-]/}" "$(table_json "$connections")" "$(table_json "$modes")" "$(table_json "$FORMATS")" "$(table_json "$profiles")"
+    "${model//[^A-Za-z0-9 ._-]/}" "$(table_json "$connections")" "$(table_json "$modes")" "$(table_json "$formats")" "$(table_json "$profiles")"
 }
 
 # Capture cards GStreamer can see. Only DeckLink hardware counts: other video

@@ -10,8 +10,9 @@ DeckLink is an unofficial community plugin. It is not affiliated with,
 endorsed by, or connected to Blackmagic Design or Omarchy.
 
 > **Tested hardware: DeckLink Mini Recorder only.**
-> Every claim below was verified on a DeckLink Mini Recorder (the original
-> PCIe model with HD-SDI and HDMI inputs) on Arch Linux. Other models use the
+> Every claim below was verified on one DeckLink Mini Recorder (the name the
+> driver reports; Blackmagic sells it today as the Mini Recorder HD) on Arch
+> Linux. Other models use the
 > same GStreamer element and *should* work, but are **untested**. They may need
 > a different connection, mode or pixel format. See [Other DeckLink
 > models](#other-decklink-models).
@@ -102,21 +103,24 @@ how often the bar polls the status.
 From [Blackmagic's model list](https://www.blackmagicdesign.com/products/decklink/models).
 "Capture" cards work as a webcam source; "playback" cards can't.
 
-| Model | Inputs | Max capture | Status |
-|-------|--------|-------------|--------|
-| **Mini Recorder** | HD-SDI, HDMI | 1080p30 | **Tested** |
-| Mini Recorder HD | 3G-SDI, HDMI | 1080p60 | Untested |
-| Mini Recorder 4K | 6G-SDI, HDMI 2.0a | 2160p30 | Untested |
-| Micro Recorder | HD-SDI, HDMI | 1080p30 | Untested |
-| SDI Micro | 3G-SDI | 1080p60 | Untested |
-| Duo 2, Duo 2 Mini | 4× 3G-SDI | 1080p60 | Untested |
-| Quad 2 | 8× 3G-SDI | 1080p60 | Untested |
-| SDI 4K | 6G-SDI | Ultra HD | Untested |
-| Studio 4K | SDI, HDMI, component, composite, S-Video | Ultra HD | Untested |
-| 4K Extreme 12G | 12G-SDI | Ultra HD 60p | Untested |
-| Quad HDMI Recorder | 4× HDMI 2.0b | Ultra HD, 4K | Untested |
-| 8K Pro Mini, 8K Pro G2 | 12G-SDI (G2 adds HDMI 2.1) | 8K | Untested |
-| Mini Monitor 4K / HD | n/a | n/a | **Playback only, won't work** |
+| Model | Capture inputs | Pixel formats (Blackmagic specs) | Status |
+|-------|----------------|----------------------------------|--------|
+| **Mini Recorder (HD)** | 3G-SDI, HDMI | YUV 4:2:2 8/10-bit, RGB | **Tested** |
+| Mini Recorder 4K | 6G-SDI, HDMI 2.0a | YUV 4:2:2 8/10-bit, RGB | Untested |
+| Micro Recorder | HD-SDI or HDMI (add-on connectors) | YUV 4:2:2 8/10-bit | Untested |
+| SDI Micro | 3G-SDI | YUV 4:2:2 8/10-bit, RGB | Untested |
+| SDI 4K | 6G-SDI | YUV 4:2:2 10-bit, RGB | Untested |
+| Studio 4K | SDI, HDMI, component, composite, S-Video | YUV 4:2:2 8/10-bit, RGB | Untested |
+| 4K Extreme 12G | 12G-SDI, HDMI, component, composite, S-Video, optical (optional) | YUV 4:2:2 8/10-bit, RGB | Untested |
+| Quad HDMI Recorder | 4× HDMI 2.0b | YUV 4:2:2 8/10-bit, RGB | Untested |
+| Duo 2, Duo 2 Mini | 4× 3G-SDI | YUV 4:2:2 8/10-bit, RGB | Untested, see profiles |
+| Quad 2 | 8× 3G-SDI | YUV 4:2:2 8/10-bit, RGB | Untested, see profiles |
+| 8K Pro Mini | 4× 12G-SDI | YUV 4:2:2 8/10-bit, RGB | Untested, see profiles |
+| 8K Pro G2 | 4× 12G-SDI, HDMI 2.1 | YUV 4:2:2 8/10-bit, RGB | Untested, see profiles |
+| Mini Monitor 4K / HD | none (playback only) | n/a | **Won't work** |
+
+The card list, inputs and pixel formats follow Blackmagic's
+[technical specifications](https://www.blackmagicdesign.com/products/decklink/techspecs/W-DLK-39).
 
 The panel adapts to the selected card:
 
@@ -124,9 +128,12 @@ The panel adapts to the selected card:
   (`gst-device-monitor-1.0 Video/Source`), so a Mini Recorder only offers SD,
   1080 up to 30p/60i and 720p, while a 4K card also offers the 2160 modes.
   If the card can't be queried, every mode is shown.
-- **Connections** are filtered by model name using the table above (HDMI and
-  SDI for most cards, analog inputs for the Studio 4K only, HDMI only for the
-  Quad HDMI Recorder). An unrecognised model shows every connection.
+- **Connections** are filtered by model name using the table above (SDI and
+  HDMI for the recorders, analog inputs for the Studio 4K and 4K Extreme 12G,
+  optical SDI for the 4K Extreme 12G only, HDMI only for the Quad HDMI
+  Recorder). An unrecognised model shows every connection.
+- **Pixel formats** follow the tech specs: YUV only for the Micro Recorder,
+  YUV and RGB for the rest. An unrecognised model shows every format.
 - **Card** is a dropdown that appears when GStreamer sees more than one card.
   Changing it reloads the other dropdowns for that card.
 - **Sub-device profile** appears only for the Duo 2, Quad 2 and 8K Pro.
@@ -137,8 +144,9 @@ Things to know on other cards:
   icon switches to the no-signal colour.
 - **4K and 8K:** the pipeline converts every frame to YUY2 and may deinterlace
   on the CPU, which is heavy at those sizes. 4K DCI and 8K modes are not offered.
-- **Pixel format** is not filtered by card. Which formats work depends on the
-  card, so try 8-bit YUV first.
+- **Pixel format:** RGB formats have limits that depend on the mode (for
+  example RGB up to 1080p30 on the Mini Recorder HD over SDI). If a mode shows no
+  picture in RGB, use 10-bit or 8-bit YUV.
 - **Find your card's modes:** `gst-inspect-1.0 decklinkvideosrc` and
   `gst-device-monitor-1.0 Video/Source`.
 
