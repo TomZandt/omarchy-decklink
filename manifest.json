@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "id": "tzv.decklink",
+  "name": "DeckLink",
+  "version": "1.0.0",
+  "author": "TZV",
+  "license": "MIT",
+  "description": "DeckLink: use a Blackmagic DeckLink capture card as a webcam. Start and stop the virtual camera from the Omarchy bar and pick the input, video mode and pixel format. Never auto-starts, so OBS and Resolve can keep the card.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "DeckLinkPanel.qml"
+  },
+  "barWidget": {
+    "displayName": "DeckLink",
+    "description": "Left-click starts or stops the virtual camera; right-click opens the settings panel; middle-click refreshes.",
+    "category": "Media",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "refreshIntervalSec": 5
+    },
+    "schema": [
+      {
+        "key": "refreshIntervalSec",
+        "type": "integer",
+        "label": "Refresh interval (seconds)",
+        "min": 2,
+        "max": 600,
+        "step": 1,
+        "defaultValue": 5
+      }
+    ]
+  }
+}
