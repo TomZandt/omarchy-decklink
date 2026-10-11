@@ -5,7 +5,7 @@
   "version": "1.0.0",
   "author": "TZV",
   "license": "MIT",
-  "description": "DeckLink: use a Blackmagic DeckLink capture card as a webcam. Start and stop the virtual camera from the Omarchy bar and pick the card, input, video mode and pixel format. Tested on the DeckLink Mini Recorder only. Never auto-starts, so OBS and Resolve can keep the card.",
+  "description": "DeckLink: use a Blackmagic DeckLink capture card as a webcam. Start and stop the virtual camera from the Omarchy bar and pick the card, input, video mode and pixel format, and optionally expose the embedded audio as a microphone. Tested on the DeckLink Mini Recorder only. Never auto-starts, so OBS and Resolve can keep the card.",
   "kinds": [
     "bar-widget"
   ],

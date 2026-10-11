@@ -19,8 +19,8 @@ Panel {
 
   property string camState: "off"    // off | live | nosignal | error
   property string holder: ""          // another app that has the card (obs, resolve)
-  property var cfg: ({ device: "0", connection: "auto", mode: "auto", format: "auto", profile: "default" })
-  property var options: ({ model: "", connection: [], mode: [], format: [], profile: [] })   // from backend.sh options, filtered to the selected card
+  property var cfg: ({ device: "0", connection: "auto", mode: "auto", format: "auto", profile: "default", audio: "off" })
+  property var options: ({ model: "", connection: [], mode: [], format: [], profile: [], audio: [] })   // from backend.sh options, filtered to the selected card
   property var devices: []            // capture cards found, from backend.sh devices
   property string sink: ""
   property string message: ""
@@ -376,6 +376,7 @@ Panel {
             { key: "connection", label: "Connection" },
             { key: "mode", label: "Video mode" },
             { key: "format", label: "Pixel format" },
+            { key: "audio", label: "Audio (DeckLink Audio microphone)" },
             { key: "profile", label: "Sub-device profile" }
           ]
           delegate: Dropdown {

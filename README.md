@@ -17,6 +17,17 @@ endorsed by, or connected to Blackmagic Design or Omarchy.
 > a different connection, mode or pixel format. See [Other DeckLink
 > models](#other-decklink-models).
 
+## Audio
+
+The card's embedded SDI or HDMI audio can be exposed as a microphone. Set
+**Audio** in the panel to 2, 8 or 16 channels (default Off). While the camera
+runs, a PipeWire source called "DeckLink Audio" appears, and it goes away when
+the camera stops, so it follows the same never-auto-start rule. HDMI carries up
+to 8 channels and SDI up to 16 (48 kHz, 24-bit, per Blackmagic's specs), so 16
+is capped to 8 on HDMI. Analog connections use the card's analog audio input.
+Audio needs `gst-plugin-pipewire`. The audio path is untested with a real
+source, because the tested card had nothing plugged in.
+
 ## It never starts by itself
 
 A DeckLink card serves one app at a time. While this plugin's camera is
@@ -51,6 +62,7 @@ On Arch (package names as of writing):
 | GStreamer DeckLink plugin | `gst-plugins-bad-libs` |
 | Virtual camera kernel module | `v4l2loopback-dkms` |
 | Desktop notifications | `libnotify` |
+| Audio as a microphone (optional) | `gst-plugin-pipewire` |
 | Live preview in the panel | `qt6-multimedia` |
 
 ### Virtual camera setup (needs root, once)
@@ -91,6 +103,7 @@ checked against the known choices.
 | `DECKLINK_DEVICE`     | `0`     | Card number (the panel's Capture device dropdown sets it) |
 | `DECKLINK_CONNECTION` | `auto`  | `auto`, `hdmi`, `sdi`, `component`, `composite`, `svideo`, `optical-sdi` |
 | `DECKLINK_MODE`       | `auto`  | Video mode, e.g. `1080i50`, `1080p25`, `720p50` |
+| `DECKLINK_AUDIO`      | `off`   | `off`, `2`, `8` or `16`: the number of embedded audio channels to expose as a PipeWire microphone called "DeckLink Audio" |
 | `DECKLINK_PROFILE`    | `default` | Sub-device / duplex layout, Duo 2, Quad 2 and 8K Pro only: `one-sub-device-full`, `one-sub-device-half`, `two-sub-devices-full`, `two-sub-devices-half`, `four-sub-devices-half` |
 | `DECKLINK_FORMAT`     | `auto`  | `auto`, `8bit-yuv`, `10bit-yuv`, `8bit-argb`, `8bit-bgra`, `10bit-rgb` |
 | `DECKLINK_SINK`       | auto    | Loopback device to write to (`/dev/videoN`); normally found by label |
@@ -169,7 +182,7 @@ state comes from the pipeline's own "Signal lost / recovered" log lines.
 ### What it runs
 
 `backend.sh` runs `systemd-run --user`, `systemctl --user`, `journalctl --user`,
-`gst-launch-1.0`, `gst-device-monitor-1.0`, `pgrep` and `notify-send`, plus
+`gst-launch-1.0`, `gst-device-monitor-1.0`, `pgrep` and `notify-send` (and, with audio on, a PipeWire source made by `gst-launch-1.0`), plus
 standard tools (`timeout`, `flock`, `mktemp`, `readlink`, `awk`, `sed`, `grep`). The only
 file it writes is `~/.config/omarchy/decklink.conf` (plus a `.lock` beside it).
 

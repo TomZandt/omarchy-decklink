@@ -61,6 +61,18 @@ check "Micro Recorder is YUV only"        '[ "$(vals 4 format)" = "auto 8bit-yuv
 check "unknown card shows every mode"     '[ "$(vals 7 mode | wc -w)" -gt 20 ]'
 check "model name is reported"            '[ "$(bash "$B" options 1 | json "print(d[\"model\"])")" = "DeckLink Studio 4K" ]'
 
+echo "-- pipeline"
+fresh
+check "pipeline has no audio by default"   '! bash "$B" pipeline | grep -q decklinkaudiosrc'
+check "audio can be turned on"             'bash "$B" set audio 2 >/dev/null && bash "$B" pipeline | grep -q "decklinkaudiosrc device-number=0 connection=embedded channels=2"'
+check "audio goes to a PipeWire source"    'bash "$B" pipeline | grep -q "pipewiresink .*media.class=Audio/Source"'
+check "HDMI caps audio at 8 channels"      'bash "$B" set connection hdmi >/dev/null; bash "$B" set audio 16 >/dev/null; bash "$B" pipeline | grep -q "channels=8"'
+check "SDI keeps 16 channels"              'bash "$B" set connection sdi >/dev/null; bash "$B" pipeline | grep -q "channels=16"'
+check "analog inputs use analog audio"     'bash "$B" set connection composite >/dev/null; bash "$B" pipeline | grep -q "connection=analog"'
+check "bad audio value is rejected"        '! bash "$B" set audio 5 >/dev/null'
+check "options include the audio choices"  '[ "$(vals 0 audio)" = "off 2 8 16" ]'
+check "fixed mode pins 8-bit when format is auto" 'bash "$B" set audio off >/dev/null; bash "$B" set mode 1080i50 >/dev/null; bash "$B" pipeline | grep -q "video-format=8bit-yuv"'
+
 echo "-- camera session (fake unit adapter)"
 fresh
 check "off to begin with"         'bash "$B" status | json "assert d[\"state\"] == \"off\""'

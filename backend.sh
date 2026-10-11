@@ -17,8 +17,9 @@
 #   start              start the bridge
 #   stop               stop the bridge
 #   set KEY VALUE      save a setting; restarts the bridge only if it is running
+#   pipeline           print the gst-launch arguments that `run` would use (for debugging and tests)
 #   run                the pipeline itself (used by the transient unit)
-# KEY is one of: device, connection, mode, format, profile.
+# KEY is one of: device, connection, mode, format, profile, audio.
 #
 # The file is organised as four modules, each with a small interface:
 #   1. Settings        what the user can choose, validated and persisted
@@ -128,7 +129,14 @@ two-sub-devices-half|Two sub-devices, half duplex
 four-sub-devices-half|Four sub-devices, half duplex"
 
 
-declare -A CHOICES=([connection]="$CONNECTIONS" [mode]="$MODES" [format]="$FORMATS" [profile]="$PROFILES")
+# Embedded audio becomes a PipeWire microphone, "DeckLink Audio". HDMI carries
+# up to 8 channels and SDI up to 16 (Blackmagic's specs), so 16 is capped to 8 on HDMI.
+AUDIO="off|Off
+2|Stereo (2 channels)
+8|8 channels
+16|16 channels"
+
+declare -A CHOICES=([connection]="$CONNECTIONS" [mode]="$MODES" [format]="$FORMATS" [profile]="$PROFILES" [audio]="$AUDIO")
 
 in_table() { # in_table <table> <value>
   printf '%s\n' "$1" | cut -d'|' -f1 | grep -qxF -- "$2"
@@ -151,12 +159,12 @@ table_json() { # table_json <table>  ->  [{"value":"..","label":".."},..]
 #    each array below (plus a choice table if it has choices).
 # ============================================================================
 
-SETTING_KEYS=(device connection mode format profile)
+SETTING_KEYS=(device connection mode format profile audio)
 declare -A CONF_VAR=([device]=DECKLINK_DEVICE [connection]=DECKLINK_CONNECTION [mode]=DECKLINK_MODE
-                     [format]=DECKLINK_FORMAT [profile]=DECKLINK_PROFILE)
-declare -A DEFAULT=([device]=0 [connection]=auto [mode]=auto [format]=auto [profile]=default)
+                     [format]=DECKLINK_FORMAT [profile]=DECKLINK_PROFILE [audio]=DECKLINK_AUDIO)
+declare -A DEFAULT=([device]=0 [connection]=auto [mode]=auto [format]=auto [profile]=default [audio]=off)
 declare -A GST_PROP=([device]=device-number [connection]=connection [mode]=mode
-                     [format]=video-format [profile]=profile)
+                     [format]=video-format [profile]=profile)   # audio is its own element, see build_pipeline
 declare -A VALUE=()
 SINK=   # not a UI setting: DECKLINK_SINK in the file overrides the loopback label lookup
 
@@ -400,7 +408,9 @@ session_start() {
   done
   echo "ok: started"
   if [[ -z "$quiet" ]]; then
-    notify normal camera-video "DeckLink camera started" "Available to apps as '$LOOPBACK_LABEL'."
+    local what="Available to apps as '$LOOPBACK_LABEL'."
+    [[ "${VALUE[audio]}" != off ]] && what+=" Audio is the microphone 'DeckLink Audio'."
+    notify normal camera-video "DeckLink camera started" "$what"
   fi
 }
 
@@ -445,9 +455,9 @@ cmd_options() {
       $3 == "" || have[$3]')
     [[ $(printf '%s\n' "$filtered" | wc -l) -gt 1 ]] && modes=$filtered
   fi
-  printf '{"model":"%s","connection":%s,"mode":%s,"format":%s,"profile":%s}\n' \
+  printf '{"model":"%s","connection":%s,"mode":%s,"format":%s,"profile":%s,"audio":%s}\n' \
     "${model//[^A-Za-z0-9 ._-]/}" "$(table_json "$CARD_CONNECTIONS")" "$(table_json "$modes")" \
-    "$(table_json "$CARD_FORMATS")" "$(table_json "$CARD_PROFILES")"
+    "$(table_json "$CARD_FORMATS")" "$(table_json "$CARD_PROFILES")" "$(table_json "$AUDIO")"
 }
 
 cmd_set() {
@@ -466,9 +476,14 @@ cmd_set() {
   fi
 }
 
-cmd_run() {
-  local key args=() value
+# The gst-launch arguments: the video branch into the loopback camera and, if
+# audio is on, an audio branch into a PipeWire microphone. Both branches live in
+# one pipeline because the two elements have to share the card.
+build_pipeline() {
+  local key args=() value sink
+  sink=$(find_sink) || return 1
   for key in "${SETTING_KEYS[@]}"; do
+    [[ -n "${GST_PROP[$key]-}" ]] || continue
     value=${VALUE[$key]}
     # video-format=auto is only valid alongside mode=auto; pin 8-bit otherwise.
     [[ "$key" == format && "$value" == auto && "${VALUE[mode]}" != auto ]] && value=8bit-yuv
@@ -476,15 +491,26 @@ cmd_run() {
     [[ "$key" == profile && "$value" == default ]] && continue
     args+=("${GST_PROP[$key]}=$value")
   done
-  local sink; sink=$(find_sink) || { echo "no virtual camera device" >&2; exit 1; }
   # The first videoconvert is required for 10-bit (v210), which deinterlace
   # cannot consume directly. Colorimetry comes from the source's display mode.
-  exec gst-launch-1.0 decklinkvideosrc "${args[@]}" \
-    ! videoconvert \
-    ! deinterlace mode=auto \
-    ! videoconvert \
-    ! video/x-raw,format=YUY2 \
-    ! v4l2sink device="$sink" sync=false
+  PIPELINE=(decklinkvideosrc "${args[@]}"
+    '!' videoconvert '!' deinterlace mode=auto '!' videoconvert
+    '!' video/x-raw,format=YUY2 '!' v4l2sink device="$sink" sync=false)
+  if [[ "${VALUE[audio]}" != off ]]; then
+    local channels=${VALUE[audio]} source=embedded
+    # Analog inputs carry their own audio; HDMI carries at most 8 channels.
+    case "${VALUE[connection]}" in component|composite|svideo) source=analog ;; hdmi) (( channels > 8 )) && channels=8 ;; esac
+    PIPELINE+=(decklinkaudiosrc device-number="${VALUE[device]}" connection="$source" channels="$channels"
+      '!' audioconvert '!' audioresample
+      '!' pipewiresink 'stream-properties="props,media.class=Audio/Source,node.name=tzv_decklink_audio,node.description=\"DeckLink Audio\""')
+  fi
+}
+
+cmd_pipeline() { build_pipeline || { echo "no virtual camera device" >&2; return 1; }; printf '%s\n' "${PIPELINE[*]}"; }
+
+cmd_run() {
+  build_pipeline || { echo "no virtual camera device" >&2; exit 1; }
+  exec gst-launch-1.0 "${PIPELINE[@]}"
 }
 
 load_settings
@@ -495,6 +521,7 @@ case "${1:-}" in
   start)   session_start ;;
   stop)    session_stop ;;
   set)     shift; cmd_set "$@" ;;
+  pipeline) cmd_pipeline ;;
   run)     cmd_run ;;
   *) echo "usage: ${0##*/} <status|options [N]|devices|start|stop|set KEY VALUE>" >&2; exit 2 ;;
 esac
