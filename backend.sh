@@ -290,6 +290,7 @@ devices_json() {
 #      unit_launch   start the pipeline; non-zero if it could not be launched
 #      unit_stop     stop it
 #      unit_signal   last signal event in this run: "lost", "recovered" or empty
+#      unit_failure  why the last run died: "autodetect" (nothing to detect), or empty
 #      sink_ready    the virtual camera device exists
 #      holder        another app that grabs the card (obs, resolve)
 #      notify        desktop notification
@@ -320,6 +321,7 @@ if [[ "${DECKLINK_ADAPTER:-systemd}" == fake ]]; then
   }
   unit_stop()   { echo inactive > "$FAKE/state"; }
   unit_signal() { cat "$FAKE/signal" 2>/dev/null; }
+  unit_failure() { cat "$FAKE/failure" 2>/dev/null; }
   sink_ready()  { [[ ! -e "$FAKE/no-sink" ]]; }
   holder()      { cat "$FAKE/holder" 2>/dev/null; }
   notify()      { printf '%s\n' "$3" >> "$FAKE/notifications"; }
@@ -345,6 +347,11 @@ else
       "Signal lost"|"No input source was detected") echo lost ;;
       "Signal recovered") echo recovered ;;
     esac
+  }
+  # Auto mode needs a live signal to detect; without one the pipeline can't
+  # negotiate and exits at once. That is not the card being held by another app.
+  unit_failure() {
+    journalctl --user -u "$UNIT" -n 40 --no-pager 2>/dev/null | grep -q "not-negotiated" && echo autodetect
   }
   sink_ready() { local s; s=$(find_sink) && [[ -e "$s" ]]; }
   holder() {
@@ -381,8 +388,13 @@ session_start() {
   for i in 1 2 3 4 5 6; do
     nap 0.5
     if ! session_running; then
-      echo "error: failed to start. Is another app holding the card, or is the card number right?"
-      [[ -z "$quiet" ]] && notify critical dialog-error "DeckLink camera failed to start" "Check nothing else (OBS, Resolve) is holding the card."
+      if [[ "$(unit_failure)" == autodetect ]]; then
+        echo "error: no signal to auto-detect. Pick a video mode, or plug in a source."
+        [[ -z "$quiet" ]] && notify critical dialog-error "DeckLink camera failed to start" "Auto needs a live signal. Pick a video mode in the panel."
+      else
+        echo "error: failed to start. Is another app holding the card, or is the card number right?"
+        [[ -z "$quiet" ]] && notify critical dialog-error "DeckLink camera failed to start" "Check nothing else (OBS, Resolve) is holding the card."
+      fi
       return 1
     fi
   done
@@ -443,6 +455,8 @@ cmd_set() {
   for k in "${SETTING_KEYS[@]}"; do [[ "$k" == "$key" ]] && known=1; done
   if (( ! known )); then echo "error: unknown setting: $key"; return 1; fi
   if ! valid "$key" "$value"; then echo "error: bad value for $key"; return 1; fi
+  # Re-selecting the current card is not a card change: keep everything.
+  if [[ "$key" == device && "$value" == "${VALUE[device]}" ]]; then echo "ok: device = $value (unchanged)"; return 0; fi
   save_setting "$key" "$value"
   # Only restart if it is already running; otherwise just record the setting.
   if session_running; then

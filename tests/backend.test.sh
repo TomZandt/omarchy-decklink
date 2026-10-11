@@ -33,6 +33,7 @@ check "status reflects setting"   'bash "$B" status | json "assert d[\"settings\
 check "set replaces, not appends" 'bash "$B" set mode pal >/dev/null && [ "$(grep -c ^DECKLINK_MODE= "$CONF")" = 1 ]'
 check "set rejects unknown mode"  '! bash "$B" set mode "pal; rm -rf ~" >/dev/null'
 check "set rejects unknown key"   '! bash "$B" set nope 1 >/dev/null'
+check "re-selecting the card keeps the rest" 'bash "$B" set device 0 >/dev/null; bash "$B" set mode 720p50 >/dev/null; bash "$B" set device 0 >/dev/null && bash "$B" status | json "assert d[\"settings\"][\"mode\"] == \"720p50\""'
 check "set rejects bad card"      '! bash "$B" set device "1;x" >/dev/null'
 check "set saves a profile"       'bash "$B" set profile two-sub-devices-full >/dev/null && bash "$B" status | json "assert d[\"settings\"][\"profile\"] == \"two-sub-devices-full\""'
 check "set rejects bad profile"   '! bash "$B" set profile nope >/dev/null'
@@ -76,6 +77,8 @@ check "stop is idempotent"        'bash "$B" stop | grep -q "not running"'
 fresh
 check "start fails when the pipeline exits" 'touch "$FAKE/fail-start"; ! bash "$B" start | grep -q "^ok"; bash "$B" status | json "assert d[\"state\"] == \"off\""'
 rm -f "$FAKE/fail-start"
+check "auto-detect failure is explained"   'touch "$FAKE/fail-start"; echo autodetect > "$FAKE/failure"; bash "$B" start | grep -q "no signal to auto-detect"'
+rm -f "$FAKE/fail-start" "$FAKE/failure"
 check "start fails without the loopback"    'touch "$FAKE/no-sink"; bash "$B" start | grep -q "no virtual camera device"'
 rm -f "$FAKE/no-sink"
 check "start fails if launch fails"         'touch "$FAKE/launch-error"; bash "$B" start | grep -q "could not start"'
