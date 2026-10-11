@@ -194,6 +194,15 @@ omarchy plugin validate .
 bash tests/backend.test.sh     # needs no card, systemd or desktop
 ```
 
+`backend.sh` is four modules: Settings (one definition per setting), Card
+catalogue (one row per model), Card inventory (the only reader of
+`gst-device-monitor-1.0` output) and Camera session (start, stop, restart and
+state over a unit adapter). The tests swap two seams: `DECKLINK_INVENTORY_FILE`
+points the inventory at `tests/fixtures/gst-device-monitor.txt`, and
+`DECKLINK_ADAPTER=fake` replaces systemd with an in-memory adapter. To add a
+model, add one row to `CATALOGUE`; to add a setting, add a row to each setting
+array.
+
 ## License
 
 MIT, see [LICENSE](LICENSE).

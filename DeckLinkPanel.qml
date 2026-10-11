@@ -47,7 +47,7 @@ Panel {
     camState = o.state
     holder = o.holder
     sink = o.sink
-    cfg = { device: o.device, connection: o.connection, mode: o.mode, format: o.format, profile: o.profile }
+    cfg = o.settings
   }
 
   function refresh() {

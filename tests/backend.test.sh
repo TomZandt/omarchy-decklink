@@ -1,99 +1,86 @@
 #!/usr/bin/env bash
 # Tests for backend.sh that need no card, no systemd and no desktop.
+# They swap the two seams: the card inventory reads tests/fixtures/gst-device-monitor.txt
+# (a real Mini Recorder dump plus synthetic cards), and the camera session runs on
+# the in-memory fake unit adapter.
 # Run: bash tests/backend.test.sh
 set -u
 cd "$(dirname "$0")/.."
 B=$PWD/backend.sh
+FIXTURE=$PWD/tests/fixtures/gst-device-monitor.txt
 export XDG_CONFIG_HOME=$(mktemp -d)
+export DECKLINK_INVENTORY_FILE=$FIXTURE
+export DECKLINK_ADAPTER=fake
+export DECKLINK_FAKE_DIR=$(mktemp -d)
 mkdir -p "$XDG_CONFIG_HOME/omarchy"
 CONF=$XDG_CONFIG_HOME/omarchy/decklink.conf
+FAKE=$DECKLINK_FAKE_DIR
 fail=0
 check() { if eval "$2"; then echo "ok   $1"; else echo "FAIL $1"; fail=1; fi; }
+fresh() { rm -rf "$FAKE"/* "$CONF"; }
+json() { python3 -c "import json,sys;d=json.load(sys.stdin);$1"; }
+vals() { bash "$B" options "$1" | json "print(' '.join(x['value'] for x in d['$2']))"; }
 
-check "status is valid JSON"      'bash "$B" status | python3 -c "import json,sys;json.load(sys.stdin)"'
-check "options is valid JSON"     'bash "$B" options | python3 -c "import json,sys;d=json.load(sys.stdin);assert d[\"mode\"] and d[\"connection\"] and d[\"format\"]"'
-check "defaults are auto"         'bash "$B" status | grep -q "\"mode\":\"auto\""'
+echo "-- status and options"
+check "status is valid JSON"      'bash "$B" status | json "pass"'
+check "options is valid JSON"     'bash "$B" options | json "assert d[\"mode\"] and d[\"connection\"] and d[\"format\"]"'
+check "defaults are auto"         'bash "$B" status | json "assert d[\"settings\"][\"mode\"] == \"auto\""'
 
+echo "-- settings"
+fresh
 check "set saves a setting"       'bash "$B" set mode 1080i50 >/dev/null && grep -qx "DECKLINK_MODE=1080i50" "$CONF"'
-check "status reflects setting"   'bash "$B" status | grep -q "\"mode\":\"1080i50\""'
+check "status reflects setting"   'bash "$B" status | json "assert d[\"settings\"][\"mode\"] == \"1080i50\""'
 check "set replaces, not appends" 'bash "$B" set mode pal >/dev/null && [ "$(grep -c ^DECKLINK_MODE= "$CONF")" = 1 ]'
 check "set rejects unknown mode"  '! bash "$B" set mode "pal; rm -rf ~" >/dev/null'
 check "set rejects unknown key"   '! bash "$B" set nope 1 >/dev/null'
-check "set saves a profile"       'bash "$B" set profile two-sub-devices-full >/dev/null && bash "$B" status | grep -q "\"profile\":\"two-sub-devices-full\""'
-check "set rejects bad profile"   '! bash "$B" set profile nope >/dev/null'
-check "card change resets the rest" 'bash "$B" set mode pal >/dev/null && bash "$B" set device 1 >/dev/null && bash "$B" status | grep -q "\"mode\":\"auto\"" && bash "$B" status | grep -q "\"device\":\"1\""'
 check "set rejects bad card"      '! bash "$B" set device "1;x" >/dev/null'
+check "set saves a profile"       'bash "$B" set profile two-sub-devices-full >/dev/null && bash "$B" status | json "assert d[\"settings\"][\"profile\"] == \"two-sub-devices-full\""'
+check "set rejects bad profile"   '! bash "$B" set profile nope >/dev/null'
+check "card change resets the rest" 'bash "$B" set mode pal >/dev/null && bash "$B" set device 1 >/dev/null && bash "$B" status | json "s=d[\"settings\"]; assert s[\"mode\"] == \"auto\" and s[\"profile\"] == \"default\" and s[\"device\"] == \"1\""'
 
 # A hand-edited config must neither execute nor corrupt the JSON.
 printf 'DECKLINK_MODE=$(touch %s/pwned)\nDECKLINK_CONNECTION=sdi\nDECKLINK_SINK=/dev/video3"x\n' "$XDG_CONFIG_HOME" > "$CONF"
-check "bad values are ignored"    'bash "$B" status | grep -q "\"mode\":\"auto\""'
-check "good values still load"    'bash "$B" status | grep -q "\"connection\":\"sdi\""'
+check "bad values are ignored"    'bash "$B" status | json "assert d[\"settings\"][\"mode\"] == \"auto\""'
+check "good values still load"    'bash "$B" status | json "assert d[\"settings\"][\"connection\"] == \"sdi\""'
 check "config is not executed"    '[ ! -e "$XDG_CONFIG_HOME/pwned" ]'
-check "status stays valid JSON"   'bash "$B" status | python3 -c "import json,sys;json.load(sys.stdin)"'
 
-# Filtering by card, using a fake gst-device-monitor-1.0 that reports two cards.
-FAKE=$(mktemp -d)
-cat > "$FAKE/gst-device-monitor-1.0" <<'FAKEEOF'
-#!/usr/bin/env bash
-cat <<'OUT'
-Device found:
+echo "-- card catalogue and inventory (fixture dump)"
+fresh
+check "devices lists only DeckLink cards" '[ "$(bash "$B" devices | json "print(len(d))")" = 5 ]'
+check "devices skips the loopback"        '! bash "$B" devices | grep -q Virtual'
+check "Mini Recorder: SDI + HDMI"         '[ "$(vals 0 connection)" = "auto hdmi sdi" ]'
+check "Mini Recorder: modes are its caps" '[ "$(vals 0 mode)" = "auto ntsc pal ntsc-p pal-p 1080p2398 1080p24 1080p25 1080p2997 1080p30 1080i50 1080i5994 1080i60 720p50 720p5994 720p60" ]'
+check "Studio 4K has analog inputs"       '[ "$(vals 1 connection)" = "auto hdmi sdi component composite svideo" ]'
+check "Studio 4K modes are its caps"      '[ "$(vals 1 mode)" = "auto 1080p25 2160p30" ]'
+check "Duo 2 is SDI only"                 '[ "$(vals 2 connection)" = "auto sdi" ]'
+check "Duo 2 offers profiles"             '[ "$(vals 2 profile | wc -w)" = 6 ]'
+check "Studio 4K has no profiles"         '[ "$(vals 1 profile)" = "default" ]'
+check "Extreme 12G adds optical"          '[ "$(vals 3 connection)" = "auto hdmi sdi component composite svideo optical-sdi" ]'
+check "Micro Recorder is YUV only"        '[ "$(vals 4 format)" = "auto 8bit-yuv 10bit-yuv" ]'
+check "unknown card shows every mode"     '[ "$(vals 7 mode | wc -w)" -gt 20 ]'
+check "model name is reported"            '[ "$(bash "$B" options 1 | json "print(d[\"model\"])")" = "DeckLink Studio 4K" ]'
 
-	name  : DeckLink Studio 4K (Video Capture)
-	class : Video/Source/Hardware
-	caps  : video/x-raw, width=1920, height=1080, pixel-aspect-ratio=1/1, interlace-mode=progressive, framerate=25/1
-	        video/x-raw, width=3840, height=2160, pixel-aspect-ratio=1/1, interlace-mode=progressive, framerate=30/1
-	properties:
-		device-number = 0 (0x00000000) (guint)
-		model-name = DeckLink Studio 4K
+echo "-- camera session (fake unit adapter)"
+fresh
+check "off to begin with"         'bash "$B" status | json "assert d[\"state\"] == \"off\""'
+check "start succeeds"            'bash "$B" start | grep -q "^ok: started"'
+check "status is live"            'bash "$B" status | json "assert d[\"state\"] == \"live\""'
+check "start is idempotent"       'bash "$B" start | grep -q "already running"'
+check "no-signal is reported"     'echo lost > "$FAKE/signal"; bash "$B" status | json "assert d[\"state\"] == \"nosignal\""'
+check "recovered signal is live"  'echo recovered > "$FAKE/signal"; bash "$B" status | json "assert d[\"state\"] == \"live\""'
+check "holder is reported"        'echo obs > "$FAKE/holder"; bash "$B" status | json "assert d[\"holder\"] == \"obs\""'
+check "set while running restarts" ': > "$FAKE/notifications"; bash "$B" set mode 720p50 | grep -q "restarted" && bash "$B" status | json "assert d[\"state\"] != \"off\""'
+check "set restarts silently"     '! grep -q "camera started" "$FAKE/notifications"'
+check "stop succeeds"             'bash "$B" stop | grep -q "^ok: stopped" && bash "$B" status | json "assert d[\"state\"] == \"off\""'
+check "stop is idempotent"        'bash "$B" stop | grep -q "not running"'
+fresh
+check "start fails when the pipeline exits" 'touch "$FAKE/fail-start"; ! bash "$B" start | grep -q "^ok"; bash "$B" status | json "assert d[\"state\"] == \"off\""'
+rm -f "$FAKE/fail-start"
+check "start fails without the loopback"    'touch "$FAKE/no-sink"; bash "$B" start | grep -q "no virtual camera device"'
+rm -f "$FAKE/no-sink"
+check "start fails if launch fails"         'touch "$FAKE/launch-error"; bash "$B" start | grep -q "could not start"'
+rm -f "$FAKE/launch-error"
+check "failed restart is reported"          'bash "$B" start >/dev/null; touch "$FAKE/fail-start"; ! bash "$B" set mode pal | grep -q "^ok"'
 
-Device found:
-
-	name  : DeckLink Virtual Camera
-	class : Video/Source
-	caps  : video/x-raw, width=1920, height=1080, framerate=25/1
-	properties:
-		device.path = /dev/video10
-
-Device found:
-
-	name  : DeckLink Duo 2 (Video Capture)
-	class : Video/Source/Hardware
-	caps  : video/x-raw, width=1920, height=1080, pixel-aspect-ratio=1/1, interlace-mode=interleaved, framerate=25/1
-	properties:
-		device-number = 1 (0x00000001) (guint)
-		model-name = DeckLink Duo 2
-
-Device found:
-
-	name  : DeckLink 4K Extreme 12G (Video Capture)
-	class : Video/Source/Hardware
-	caps  : video/x-raw, width=1920, height=1080, pixel-aspect-ratio=1/1, interlace-mode=progressive, framerate=25/1
-	properties:
-		device-number = 2 (0x00000002) (guint)
-		model-name = DeckLink 4K Extreme 12G
-
-Device found:
-
-	name  : DeckLink Micro Recorder (Video Capture)
-	class : Video/Source/Hardware
-	caps  : video/x-raw, width=1920, height=1080, pixel-aspect-ratio=1/1, interlace-mode=progressive, framerate=25/1
-	properties:
-		device-number = 3 (0x00000003) (guint)
-		model-name = DeckLink Micro Recorder
-OUT
-FAKEEOF
-chmod +x "$FAKE/gst-device-monitor-1.0"
-vals() { PATH="$FAKE:$PATH" bash "$B" options "$1" | python3 -c "import json,sys;d=json.load(sys.stdin);print(' '.join(x['value'] for x in d['$2']))"; }
-check "Studio 4K has analog inputs" '[ "$(vals 0 connection)" = "auto hdmi sdi component composite svideo" ]'
-check "Studio 4K modes are its caps" '[ "$(vals 0 mode)" = "auto 1080p25 2160p30" ]'
-check "Extreme 12G adds optical"    '[ "$(PATH="$FAKE:$PATH" bash "$B" options 2 | python3 -c "import json,sys;print(\" \".join(x[\"value\"] for x in json.load(sys.stdin)[\"connection\"]))")" = "auto hdmi sdi component composite svideo optical-sdi" ]'
-check "Micro Recorder is YUV only"  '[ "$(vals 3 format)" = "auto 8bit-yuv 10bit-yuv" ]'
-check "Duo 2 is SDI only"           '[ "$(vals 1 connection)" = "auto sdi" ]'
-check "Duo 2 offers profiles"       '[ "$(vals 1 profile | wc -w)" = 6 ]'
-check "Studio 4K has no profiles"   '[ "$(vals 0 profile)" = "default" ]'
-check "devices lists only DeckLink cards" '[ "$(PATH="$FAKE:$PATH" bash "$B" devices | python3 -c "import json,sys;print(len(json.load(sys.stdin)))")" = 4 ]'
-check "unknown card shows all modes" '[ "$(vals 7 mode | wc -w)" -gt 20 ]'
-rm -rf "$FAKE"
-
-rm -rf "$XDG_CONFIG_HOME"
+rm -rf "$XDG_CONFIG_HOME" "$FAKE"
 exit $fail
