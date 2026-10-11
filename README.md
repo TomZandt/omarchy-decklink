@@ -1,10 +1,20 @@
 # DeckLink
 
-Use a Blackmagic DeckLink capture card as a webcam, from the
-[Omarchy](https://omarchy.org) bar. Start and stop the virtual camera with a
-click, and pick the card, input connection, video mode and pixel format from a
-panel. Chrome, Firefox, Zoom and anything else that speaks V4L2 sees it as
-"DeckLink Virtual Camera".
+**Use a Blackmagic Design DeckLink capture card as a webcam on Linux.**
+This [Omarchy](https://omarchy.org) bar plugin turns the picture coming into a
+DeckLink card (a camera, a console or any SDI or HDMI source) into a virtual
+webcam called "DeckLink Virtual Camera", so Chrome, Firefox, Zoom and anything
+else that speaks V4L2 can use it. Right-click the bar icon to start or stop it,
+and left-click to open a panel with a live preview and the card, input, video
+mode, pixel format and audio settings. Optionally, the card's embedded audio
+becomes a microphone.
+
+**Requires Blackmagic's official Desktop Video software** (the driver that
+provides the `blackmagic_io` kernel module and makes the card visible to Linux;
+`decklink` in the AUR on Arch). Without it the plugin finds no card. See
+[Requirements](#requirements) for the other packages.
+
+![The DeckLink panel](preview.png)
 
 DeckLink is an unofficial community plugin. It is not affiliated with,
 endorsed by, or connected to Blackmagic Design or Omarchy.
