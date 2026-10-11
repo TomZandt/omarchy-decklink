@@ -257,13 +257,25 @@ cmd_options() {
     "${model//[^A-Za-z0-9 ._-]/}" "$(table_json "$connections")" "$(table_json "$modes")" "$(table_json "$FORMATS")" "$(table_json "$profiles")"
 }
 
-# Capture cards GStreamer can see, in device-number order. Playback-only cards
-# (Mini Monitor) are not capture sources, so they never appear here.
+# Capture cards GStreamer can see. Only DeckLink hardware counts: other video
+# sources, including our own "DeckLink Virtual Camera" loopback, have no
+# device-number property. Playback-only cards (Mini Monitor) are not capture
+# sources, so they never appear here either.
 cmd_devices() {
-  local names
-  names=$(timeout 10 gst-device-monitor-1.0 Video/Source 2>/dev/null \
-          | awk -F': ' '/^[[:space:]]*name[[:space:]]*:/ && /DeckLink/ {sub(/ \(Video Capture\)$/, "", $2); print $2}')
-  printf '%s\n' "$names" | awk 'BEGIN{printf "["} NF{ if (n++) printf ","; gsub(/["\\]/, "", $0); printf "{\"value\":\"%d\",\"label\":\"%d: %s\"}", n-1, n-1, $0 } END{printf "]\n"}'
+  timeout 10 gst-device-monitor-1.0 Video/Source 2>/dev/null | awk '
+    function flush() {
+      if (found && num != "" && model ~ /DeckLink/) {
+        gsub(/["\\]/, "", model)
+        printf "%s{\"value\":\"%s\",\"label\":\"%s: %s\"}", (n++ ? "," : ""), num, num, model
+      }
+      found = 0; model = ""; num = ""
+    }
+    BEGIN { printf "[" }
+    /Device found:/ { flush(); found = 1; next }
+    found && /class[[:space:]]*:.*Hardware/ { hw = 1 }
+    found && /model-name =/ { sub(/.*model-name = /, ""); model = $0 }
+    found && /device-number =/ { sub(/.*device-number = /, ""); sub(/ .*/, ""); num = $0 }
+    END { flush(); print "]" }'
 }
 
 cmd_start() {

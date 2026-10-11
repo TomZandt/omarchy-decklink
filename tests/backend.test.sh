@@ -49,6 +49,14 @@ Device found:
 
 Device found:
 
+	name  : DeckLink Virtual Camera
+	class : Video/Source
+	caps  : video/x-raw, width=1920, height=1080, framerate=25/1
+	properties:
+		device.path = /dev/video10
+
+Device found:
+
 	name  : DeckLink Duo 2 (Video Capture)
 	class : Video/Source/Hardware
 	caps  : video/x-raw, width=1920, height=1080, pixel-aspect-ratio=1/1, interlace-mode=interleaved, framerate=25/1
@@ -64,6 +72,7 @@ check "Studio 4K modes are its caps" '[ "$(vals 0 mode)" = "auto 1080p25 2160p30
 check "Duo 2 is SDI only"           '[ "$(vals 1 connection)" = "auto sdi" ]'
 check "Duo 2 offers profiles"       '[ "$(vals 1 profile | wc -w)" = 6 ]'
 check "Studio 4K has no profiles"   '[ "$(vals 0 profile)" = "default" ]'
+check "devices lists only DeckLink cards" '[ "$(PATH="$FAKE:$PATH" bash "$B" devices | python3 -c "import json,sys;print(len(json.load(sys.stdin)))")" = 2 ]'
 check "unknown card shows all modes" '[ "$(vals 7 mode | wc -w)" -gt 20 ]'
 rm -rf "$FAKE"
 
