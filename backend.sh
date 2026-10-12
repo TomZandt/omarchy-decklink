@@ -260,7 +260,23 @@ card_choices() {
 
 inventory_raw() {
   if [[ -n "${DECKLINK_INVENTORY_FILE:-}" ]]; then cat "$DECKLINK_INVENTORY_FILE"
-  else timeout 10 gst-device-monitor-1.0 Video/Source 2>/dev/null
+  else
+    # At login PipeWire may still be settling and the probe can segfault; keep
+    # whatever it printed, and if that was nothing, try once more shortly after.
+    local out i sock="${XDG_RUNTIME_DIR:-/run/user/$UID}/pipewire-0"
+    # Wait (up to ~20s) for the PipeWire socket so we don't probe a daemon that is still starting.
+    while [[ ! -S "$sock" ]] && ((i++ < 40)); do sleep 0.5; done
+    # Once it exists, give WirePlumber a few seconds from the socket's creation to settle its devices.
+    if [[ -S "$sock" ]]; then
+      local age=$(( $(date +%s) - $(stat -c %Y "$sock") ))
+      ((age >= 0 && age < 4)) && sleep $((4 - age))
+    fi
+    out=$(timeout 10 gst-device-monitor-1.0 Video/Source 2>/dev/null)
+    if [[ -z "$out" ]]; then
+      sleep 2
+      out=$(timeout 10 gst-device-monitor-1.0 Video/Source 2>/dev/null)
+    fi
+    printf '%s\n' "$out"
   fi
 }
 
